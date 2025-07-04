@@ -3,18 +3,6 @@ import InventoryCaptureForm from './InventoryCaptureForm';
 import ShippingRegisterForm from './ShippingRegisterForm';
 import FinishedGoodsReportTable from './FinishedGoodsReportTable';
 
-import { useEffect } from 'react';
-
-useEffect(() => {
-  fetch('https://shipping-api-cc88.onrender.com/api/shippings')
-    .then(res => res.json())
-    .then(data => {
-      console.log('Datos cargados desde la API:', data);
-    })
-    .catch(err => console.error('Error al conectar con el backend:', err));
-}, []);
-
-
 const AdminDashboard = ({ currentPage }) => {
   const renderPage = () => {
     switch (currentPage) {

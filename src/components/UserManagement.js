@@ -63,7 +63,7 @@ const UserManagement = () => {
   };
 
   const handleRemoveUser = (userId) => {
-    if (window.confirm('¿Estás seguro de que quieres eliminar este usuario?')) {
+    if (window.confirm('¿Estás seguro de que quieres eliminar este usuario? Esta acción es irreversible.')) {
       const updatedUsers = users.filter(user => user.id !== userId);
       setStorage('users', updatedUsers);
       setUsers(updatedUsers);
