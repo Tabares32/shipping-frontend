@@ -1,63 +1,64 @@
-import React, { useState, useEffect } from 'react';
-import { setStorage, getStorage } from '../utils/storage';
+import React, { useState } from 'react';
+import { setStorage } from '../utils/storage';
+
+const API_URL = process.env.REACT_APP_API_URL || 'https://shipping-backend-c0q1.onrender.com';
 
 const AuthLogin = ({ onLoginSuccess }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [role, setRole] = useState('normal');
+  const [isRegistering, setIsRegistering] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
-  const [isRegistering, setIsRegistering] = useState(false);
-  const [role, setRole] = useState('normal'); // Default role for new users
 
-  useEffect(() => {
-    // Initialize default admin if no users exist
-    const users = getStorage('users') || [];
-    if (users.length === 0) {
-      setStorage('users', [{ id: 'admin1', username: 'admin', password: 'adminpassword', role: 'admin' }]);
-    }
-  }, []);
-
-  // No background image, using a clean, professional background
-  const backgroundStyle = {
-    backgroundColor: '#f0f2f5', // Light gray background
-  };
-
-  const handleLogin = () => {
-    const users = getStorage('users') || [];
-    const user = users.find(u => u.username === username && u.password === password);
-    if (user) {
-      setStorage('currentUser', user);
-      onLoginSuccess(user);
-    } else {
-      setError('Usuario o contraseña incorrectos. ¡Intenta de nuevo, campeón!');
-      setMessage('');
+  const handleLogin = async () => {
+    try {
+      const response = await fetch(`${API_URL}/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setStorage('currentUser', data.user);
+        onLoginSuccess(data.user);
+      } else {
+        setError(data.error || 'Error de inicio de sesión.');
+      }
+    } catch (err) {
+      setError('Error de conexión al servidor.');
     }
   };
 
-  const handleRegister = () => {
+  const handleRegister = async () => {
     if (!username || !password) {
       setError('¡Nombre de usuario y contraseña son obligatorios!');
-      setMessage('');
       return;
     }
-    const users = getStorage('users') || [];
-    if (users.some(u => u.username === username)) {
-      setError('¡Ese nombre de usuario ya existe! Elige otro, por favor.');
-      setMessage('');
-      return;
+
+    try {
+      const response = await fetch(`${API_URL}/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password, role })
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setStorage('currentUser', data.user);
+        onLoginSuccess(data.user);
+        setMessage('¡Usuario registrado y sesión iniciada!');
+      } else {
+        setError(data.error || 'Error al registrar.');
+      }
+    } catch (err) {
+      setError('Error al conectar con el servidor.');
     }
-    const newUser = { id: Date.now().toString(), username, password, role };
-    setStorage('users', [...users, newUser]);
-    setStorage('currentUser', newUser);
-    onLoginSuccess(newUser);
-    setMessage('¡Usuario registrado y sesión iniciada con éxito!');
-    setError('');
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4" style={backgroundStyle}>
-      <div className="bg-white bg-opacity-90 p-8 rounded-2xl shadow-2xl w-full max-w-md">
-        <h2 className="text-3xl font-bold text-center text-gray-800 mb-8">
+    <div className="min-h-screen flex items-center justify-center p-4 bg-gray-100">
+      <div className="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md">
+        <h2 className="text-3xl font-bold text-center mb-8">
           {isRegistering ? 'Registrar Usuario' : 'Iniciar Sesión'}
         </h2>
         {error && <p className="text-red-500 text-center mb-4">{error}</p>}
@@ -65,14 +66,14 @@ const AuthLogin = ({ onLoginSuccess }) => {
         <input
           type="text"
           placeholder="Usuario"
-          className="w-full px-5 py-3 mb-4 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-black transition-all duration-300"
+          className="w-full px-5 py-3 mb-4 border border-gray-300 rounded-xl"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
         />
         <input
           type="password"
           placeholder="Contraseña"
-          className="w-full px-5 py-3 mb-6 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-black transition-all duration-300"
+          className="w-full px-5 py-3 mb-6 border border-gray-300 rounded-xl"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />
@@ -80,7 +81,7 @@ const AuthLogin = ({ onLoginSuccess }) => {
           <div className="mb-6">
             <label className="block text-gray-700 text-sm font-semibold mb-2">Tipo de Usuario</label>
             <select
-              className="w-full px-5 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-black transition-all duration-300"
+              className="w-full px-5 py-3 border border-gray-300 rounded-xl"
               value={role}
               onChange={(e) => setRole(e.target.value)}
             >
@@ -91,7 +92,7 @@ const AuthLogin = ({ onLoginSuccess }) => {
         )}
         <button
           onClick={isRegistering ? handleRegister : handleLogin}
-          className="w-full bg-black text-white py-3 rounded-xl hover:bg-gray-800 transition-all duration-300 text-lg font-semibold shadow-lg mb-4"
+          className="w-full bg-black text-white py-3 rounded-xl mb-4"
         >
           {isRegistering ? 'Registrar y Entrar' : 'Entrar'}
         </button>
@@ -101,7 +102,7 @@ const AuthLogin = ({ onLoginSuccess }) => {
             setError('');
             setMessage('');
           }}
-          className="w-full text-blue-600 py-2 hover:underline transition-colors duration-300"
+          className="w-full text-blue-600 py-2 hover:underline"
         >
           {isRegistering ? 'Ya tengo cuenta, Iniciar Sesión' : '¿No tienes cuenta? Registrar Usuario'}
         </button>
