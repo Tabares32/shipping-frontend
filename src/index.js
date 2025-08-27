@@ -13,4 +13,4 @@ root.render(
 );
 
 // Init realtime connection
-connectRealtime(process.env.REACT_APP_API_URL || 'http://localhost:8000');
+connectRealtime(process.env.REACT_APP_API_URL || 'https://shipping-backend-kgm5.onrender.com');
