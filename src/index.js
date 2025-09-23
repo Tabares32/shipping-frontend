@@ -1,4 +1,3 @@
-import { connectRealtime } from './utils/realtime';
 import React, { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "./styles.css";
@@ -11,6 +10,3 @@ root.render(
     <App />
   </StrictMode>
 );
-
-// Init realtime connection
-connectRealtime(process.env.REACT_APP_API_URL || 'https://shipping-backend-kgm5.onrender.com');

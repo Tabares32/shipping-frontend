@@ -1,3 +1,4 @@
+const BACKEND = process.env.REACT_APP_BACKEND_URL || '';
 import React, { useState, useEffect, useRef } from 'react';
 import AuthLogin from './components/AuthLogin';
 import DashboardHeader from './components/DashboardHeader';
@@ -7,6 +8,14 @@ import { getStorage, setStorage } from './utils/storage';
 
 const App = () => {
   const [currentUser, setCurrentUser] = useState(null);
+  useEffect(() => {
+    const token = localStorage.getItem('authToken');
+    const user = localStorage.getItem('currentUser');
+    if (token && user) {
+      try { setCurrentUser(JSON.parse(user)); } catch(e){}
+    }
+  }, []);
+
   const [currentPage, setCurrentPage] = useState('fedexShippingCapture');
   const activityTimer = useRef(null);
   const INACTIVITY_TIMEOUT = 10 * 60 * 1000; // 10 minutos en milisegundos

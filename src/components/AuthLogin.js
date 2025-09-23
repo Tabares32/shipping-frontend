@@ -9,7 +9,9 @@ const AuthLogin = ({ onLoginSuccess }) => {
   const [isRegistering, setIsRegistering] = useState(false);
   // No role selection for direct registration, only admin can add users
 
-  useEffect(() => {
+  const BACKEND = process.env.REACT_APP_BACKEND_URL || '';
+
+useEffect(() => {
     // Initialize default admin if no users exist
     const users = getStorage('users') || [];
     if (users.length === 0) {
@@ -83,5 +85,32 @@ const AuthLogin = ({ onLoginSuccess }) => {
     </div>
   );
 };
+
+
+  const loginToBackend = async (usernameVal, passwordVal) => {
+    if (!BACKEND) return false;
+    try {
+      const res = await fetch(`${BACKEND.replace(/\/$/, '')}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: usernameVal, password: passwordVal })
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        setError(err.detail || 'Login failed');
+        return false;
+      }
+      const data = await res.json();
+      // store token and user
+      setStorage('authToken', data.token);
+      setStorage('currentUser', { username: data.username, role: data.role });
+      onLoginSuccess && onLoginSuccess({ username: data.username, role: data.role });
+      return true;
+    } catch (e) {
+      setError('Network error');
+      return false;
+    }
+  };
+
 
 export default AuthLogin;
