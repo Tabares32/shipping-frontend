@@ -23,17 +23,38 @@ useEffect(() => {
     backgroundColor: '#f0f2f5', // Light gray background
   };
 
-  const handleLogin = () => {
-    const users = getStorage('users') || [];
-    const user = users.find(u => u.username === username && u.password === password);
-    if (user) {
-      setStorage('currentUser', user);
-      onLoginSuccess(user);
-    } else {
-      setError('Usuario o contraseña incorrectos. ¡Intenta de nuevo, campeón!');
-      setMessage('');
+const handleLogin = async () => {
+  setError('');
+  setMessage('');
+
+  if (!BACKEND) {
+    setError('Backend URL no configurado');
+    return;
+  }
+
+  try {
+    const res = await fetch(`${BACKEND.replace(/\/$/, '')}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      setError(err.detail || 'Error al iniciar sesión');
+      return;
     }
-  };
+
+    const data = await res.json();
+    setStorage('authToken', data.token);
+    setStorage('currentUser', { username: data.username, role: data.role });
+
+    onLoginSuccess && onLoginSuccess({ username: data.username, role: data.role });
+  } catch (e) {
+    console.error(e);
+    setError('Error de red. Verifica la conexión con el backend.');
+  }
+};
 
   // Removed direct registration for non-admin users
   // Only admin can add users via UserManagement panel
@@ -87,30 +108,32 @@ useEffect(() => {
 };
 
 
-  const loginToBackend = async (usernameVal, passwordVal) => {
-    if (!BACKEND) return false;
-    try {
-      const res = await fetch(`${BACKEND.replace(/\/$/, '')}/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: usernameVal, password: passwordVal })
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        setError(err.detail || 'Login failed');
-        return false;
-      }
-      const data = await res.json();
-      // store token and user
-      setStorage('authToken', data.token);
-      setStorage('currentUser', { username: data.username, role: data.role });
-      onLoginSuccess && onLoginSuccess({ username: data.username, role: data.role });
-      return true;
-    } catch (e) {
-      setError('Network error');
-      return false;
+const handleLogin = async () => {
+  setError('');
+  setMessage('');
+  if (!BACKEND) {
+    setError('Backend URL no configurado');
+    return;
+  }
+  try {
+    const res = await fetch(`${BACKEND.replace(/\/$/, '')}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(()=>({detail:'Error'}));
+      setError(err.detail || 'Error al iniciar sesión');
+      return;
     }
-  };
-
+    const data = await res.json();
+    setStorage('authToken', data.token);
+    setStorage('currentUser', { username: data.username, role: data.role });
+    onLoginSuccess && onLoginSuccess({ username: data.username, role: data.role });
+  } catch (e) {
+    console.error(e);
+    setError('Error de red. Verifica la conexión con el backend.');
+  }
+};
 
 export default AuthLogin;
