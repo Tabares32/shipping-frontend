@@ -2,14 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { setStorage, getStorage } from '../utils/storage';
 
 const AuthLogin = ({ onLoginSuccess }) => {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [username, setUsername] = useState('Christian Tabares');
+  const [password, setPassword] = useState('Shipping3');
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [isRegistering, setIsRegistering] = useState(false);
   // No role selection for direct registration, only admin can add users
 
-  const BACKEND = process.env.REACT_APP_BACKEND_URL || '';
+  const BACKEND = process.env.REACT_APP_BACKEND_URL || 'https://shipping-backend-kgm5.onrender.com';
 
 useEffect(() => {
     // Initialize default admin if no users exist
