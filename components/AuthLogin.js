@@ -34,7 +34,7 @@ const AuthLogin = ({ onLoginSuccess }) => {
       const res = await fetch(`${BACKEND.replace(/\/$/, '')}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
+        body: JSON.stringify({ username, password }),
       });
 
       if (!res.ok) {
@@ -49,7 +49,6 @@ const AuthLogin = ({ onLoginSuccess }) => {
 
       onLoginSuccess && onLoginSuccess({ username: data.username, role: data.role });
 
-      // Redirigir al dashboard
       setTimeout(() => {
         window.location.href = '/';
       }, 100);
@@ -59,17 +58,11 @@ const AuthLogin = ({ onLoginSuccess }) => {
     }
   };
 
-  const handleRegister = () => {
-    setError('El registro de nuevos usuarios solo puede ser realizado por un administrador.');
-    setMessage('');
-  };
-
   return (
     <div className="min-h-screen flex items-center justify-center p-4" style={backgroundStyle}>
       <div className="bg-white bg-opacity-90 p-8 rounded-2xl shadow-2xl w-full max-w-md">
-        <h2 className="text-3xl font-bold text-center text-gray-800 mb-8">
-          Iniciar Sesión
-        </h2>
+        <h2 className="text-3xl font-bold text-center text-gray-800 mb-8">Iniciar Sesión</h2>
+
         {error && <p className="text-red-500 text-center mb-4">{error}</p>}
         {message && <p className="text-green-600 text-center mb-4">{message}</p>}
 
