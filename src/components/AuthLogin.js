@@ -51,7 +51,9 @@ const AuthLogin = ({ onLoginSuccess }) => {
       onLoginSuccess && onLoginSuccess({ username: data.username, role: data.role });
 
       // Redirigir al dashboard
-      window.location.href = '/';
+      setTimeout(() => {
+  window.location.href = '/';
+}, 100);
     } catch (e) {
       console.error(e);
       setError('Error de red. Verifica la conexión con el backend.');
@@ -64,36 +66,32 @@ const AuthLogin = ({ onLoginSuccess }) => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4" style={backgroundStyle}>
-      <div className="bg-white bg-opacity-90 p-8 rounded-2xl shadow-2xl w-full max-w-md">
-        <h2 className="text-3xl font-bold text-center text-gray-800 mb-8">
-          Iniciar Sesión
-        </h2>
-        {error && <p className="text-red-500 text-center mb-4">{error}</p>}
-        {message && <p className="text-green-600 text-center mb-4">{message}</p>}
-        <input
-          type="text"
-          placeholder="Usuario" id="username" name="username" aria-label="Usuario"
-          className="w-full px-5 py-3 mb-4 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-black transition-all duration-300"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-        />
-        <input
-          type="password"
-          placeholder="Contraseña" id="password" name="password" aria-label="Contraseña"
-          className="w-full px-5 py-3 mb-6 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-black transition-all duration-300"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
-        <button
-          onClick={handleLogin}
-          className="w-full bg-black text-white py-3 rounded-xl hover:bg-gray-800 transition-all duration-300 text-lg font-semibold shadow-lg mb-4"
-        >
-          Entrar
-        </button>
-      </div>
-    </div>
-  );
-};
+<form
+  onSubmit={(e) => {
+    e.preventDefault();
+    handleLogin();
+  }}
+>
+  <input
+    type="text"
+    placeholder="Usuario"
+    className="w-full px-5 py-3 mb-4 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-black transition-all duration-300"
+    value={username}
+    onChange={(e) => setUsername(e.target.value)}
+  />
+  <input
+    type="password"
+    placeholder="Contraseña"
+    className="w-full px-5 py-3 mb-6 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-black transition-all duration-300"
+    value={password}
+    onChange={(e) => setPassword(e.target.value)}
+  />
+  <button
+    type="submit"
+    className="w-full bg-black text-white py-3 rounded-xl hover:bg-gray-800 transition-all duration-300 text-lg font-semibold shadow-lg mb-4"
+  >
+    Entrar
+  </button>
+</form>
 
 export default AuthLogin;
