@@ -64,7 +64,6 @@ const AuthLogin = ({ onLoginSuccess }) => {
     setMessage('');
   };
 
-  // ✅ AQUÍ VA EL RETURN (antes estaba faltando)
   return (
     <div className="min-h-screen flex items-center justify-center p-4" style={backgroundStyle}>
       <div className="bg-white bg-opacity-90 p-8 rounded-2xl shadow-2xl w-full max-w-md">
