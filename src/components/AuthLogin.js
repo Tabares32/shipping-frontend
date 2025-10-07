@@ -73,14 +73,14 @@ const handleLogin = async () => {
         {message && <p className="text-green-600 text-center mb-4">{message}</p>}
         <input
           type="text"
-          placeholder="Usuario"
+          placeholder="Usuario" id="username" name="username" aria-label="Usuario"
           className="w-full px-5 py-3 mb-4 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-black transition-all duration-300"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
         />
         <input
           type="password"
-          placeholder="Contraseña"
+          placeholder="Contraseña" id="password" name="password" aria-label="Contraseña"
           className="w-full px-5 py-3 mb-6 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-black transition-all duration-300"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
@@ -130,6 +130,37 @@ const handleLogin = async () => {
     setStorage('authToken', data.token);
     setStorage('currentUser', { username: data.username, role: data.role });
     onLoginSuccess && onLoginSuccess({ username: data.username, role: data.role });
+  } catch (e) {
+    console.error(e);
+    setError('Error de red. Verifica la conexión con el backend.');
+  }
+};
+
+
+const handleLogin = async () => {
+  setError('');
+  setMessage('');
+  if (!BACKEND) {
+    setError('Backend URL no configurado');
+    return;
+  }
+  try {
+    const res = await fetch(`${BACKEND.replace(/\/$/, '')}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(()=>({detail:'Usuario o contraseña incorrectos'}));
+      setError(err.detail || 'Usuario o contraseña incorrectos');
+      return;
+    }
+    const data = await res.json();
+    setStorage('authToken', data.token);
+    setStorage('currentUser', { username: data.username, role: data.role });
+    onLoginSuccess && onLoginSuccess({ username: data.username, role: data.role });
+    // Redirect to Dashboard (Dashboard.js is shown at root or /dashboard)
+    try { window.location.href = '/'; } catch(e){}
   } catch (e) {
     console.error(e);
     setError('Error de red. Verifica la conexión con el backend.');
