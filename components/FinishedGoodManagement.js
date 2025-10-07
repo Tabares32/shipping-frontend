@@ -143,7 +143,7 @@ const FinishedGoodManagement = () => {
               <input
                 type="number"
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black transition"
-                value={item.quantity}
+                value={Number(item.quantity).toFixed(4)}
                 onChange={(e) => handleMaterialChangeInBOM(index, 'quantity', parseInt(e.target.value) || 0)}
                 min="0"
               />
@@ -182,7 +182,7 @@ const FinishedGoodManagement = () => {
                     {item.bom && item.bom.length > 0 ? (
                       <ul className="list-disc list-inside text-xs">
                         {item.bom.map((mat, idx) => (
-                          <li key={idx}>{mat.name} (x{mat.quantity})</li>
+                          <li key={idx}>{mat.name} (x{Number(mat.quantity).toFixed(4)})</li>
                         ))}
                       </ul>
                     ) : 'N/A'}
