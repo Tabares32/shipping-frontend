@@ -50,8 +50,6 @@ const AuthLogin = ({ onLoginSuccess }) => {
       onLoginSuccess && onLoginSuccess({ username: data.username, role: data.role });
 
       setTimeout(() => {
-        window.location.href = '/';
-      }, 100);
     } catch (e) {
       console.error(e);
       setError('Error de red. Verifica la conexión con el backend.');

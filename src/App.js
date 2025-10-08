@@ -49,14 +49,6 @@ const performLogout = (isManual = false) => {
       resetActivityTimer();
     }
 
-    const handleBeforeUnload = () => {
-      // Only clear storage if it's not a manual logout already handled
-      if (!manualLogoutFlag.current) {
-        setStorage('currentUser', null);
-      }
-    };
-    window.addEventListener('beforeunload', handleBeforeUnload);
-
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
       clearTimeout(activityTimer.current);
