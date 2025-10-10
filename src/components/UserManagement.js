@@ -39,12 +39,17 @@ const UserManagement = () => {
       return;
     }
 
-    try {
-      const res = await fetch(`${BACKEND}/api/users`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: newUsername, password: newPassword }),
-      });
+// Recupera el token guardado al hacer login
+const token = localStorage.getItem("token");
+
+const res = await fetch(`${BACKEND}/api/users`, {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    Authorization: token ? `Bearer ${token}` : "",
+  },
+  body: JSON.stringify({ username: newUsername, password: newPassword }),
+});
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
