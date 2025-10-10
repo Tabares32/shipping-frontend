@@ -6,55 +6,54 @@ const AuthLogin = ({ onLoginSuccess }) => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
-  const [isRegistering, setIsRegistering] = useState(false);
-  // No role selection for direct registration, only admin can add users
 
   const BACKEND = process.env.REACT_APP_BACKEND_URL || 'https://shipping-backend-kgm5.onrender.com';
 
-useEffect(() => {
+  useEffect(() => {
+    // Inicializar admin local solo si no hay usuarios guardados (precaución local)
+    const users = getStorage('users') || [];
+    if (users.length === 0) {
+      setStorage('users', [
+        { id: 'admin1', username: 'Christian Tabares', password: 'Shipping3', role: 'admin' }
+      ]);
+    }
+  }, []);
 
   const backgroundStyle = {
-    backgroundColor: '#f0f2f5', // Light gray background
+    backgroundColor: '#f0f2f5', // Fondo gris claro
   };
 
-const handleLogin = async () => {
-  setError('');
-  setMessage('');
+  const handleLogin = async () => {
+    setError('');
+    setMessage('');
 
-  if (!BACKEND) {
-    setError('Backend URL no configurado');
-    return;
-  }
-
-  try {
-    const res = await fetch(`${BACKEND.replace(/\/$/, '')}/api/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password })
-    });
-
-    if (!res.ok) {
-      const err = await res.json();
-      setError(err.detail || 'Error al iniciar sesión');
+    if (!BACKEND) {
+      setError('Backend URL no configurado');
       return;
     }
 
-    const data = await res.json();
-    setStorage('authToken', data.token);
-    setStorage('currentUser', { username: data.username, role: data.role });
+    try {
+      const res = await fetch(`${BACKEND.replace(/\/$/, '')}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
 
-    onLoginSuccess && onLoginSuccess({ username: data.username, role: data.role });
-  } catch (e) {
-    console.error(e);
-    setError('Error de red. Verifica la conexión con el backend.');
-  }
-};
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: 'Error' }));
+        setError(err.detail || 'Credenciales inválidas o usuario no encontrado');
+        return;
+      }
 
-  // Removed direct registration for non-admin users
-  // Only admin can add users via UserManagement panel
-  const handleRegister = () => {
-    setError('El registro de nuevos usuarios solo puede ser realizado por un administrador.');
-    setMessage('');
+      const data = await res.json();
+      setStorage('authToken', data.token);
+      setStorage('currentUser', { username: data.username, role: data.role });
+
+      onLoginSuccess && onLoginSuccess({ username: data.username, role: data.role });
+    } catch (e) {
+      console.error('Error en login:', e);
+      setError('Error de red. Verifica la conexión con el backend.');
+    }
   };
 
   return (
@@ -63,8 +62,10 @@ const handleLogin = async () => {
         <h2 className="text-3xl font-bold text-center text-gray-800 mb-8">
           Iniciar Sesión
         </h2>
+
         {error && <p className="text-red-500 text-center mb-4">{error}</p>}
         {message && <p className="text-green-600 text-center mb-4">{message}</p>}
+
         <input
           type="text"
           placeholder="Usuario"
@@ -72,6 +73,7 @@ const handleLogin = async () => {
           value={username}
           onChange={(e) => setUsername(e.target.value)}
         />
+
         <input
           type="password"
           placeholder="Contraseña"
@@ -79,23 +81,13 @@ const handleLogin = async () => {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />
+
         <button
           onClick={handleLogin}
           className="w-full bg-black text-white py-3 rounded-xl hover:bg-gray-800 transition-all duration-300 text-lg font-semibold shadow-lg mb-4"
         >
           Entrar
         </button>
-        {/* Removed "Registrar Usuario" button for direct registration */}
-        {/* <button
-          onClick={() => {
-            setIsRegistering(!isRegistering);
-            setError('');
-            setMessage('');
-          }}
-          className="w-full text-blue-600 py-2 hover:underline transition-colors duration-300"
-        >
-          ¿No tienes cuenta? Registrar Usuario
-        </button> */}
       </div>
     </div>
   );
