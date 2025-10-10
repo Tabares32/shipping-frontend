@@ -12,12 +12,6 @@ const AuthLogin = ({ onLoginSuccess }) => {
   const BACKEND = process.env.REACT_APP_BACKEND_URL || 'https://shipping-backend-kgm5.onrender.com';
 
 useEffect(() => {
-    // Initialize default admin if no users exist
-    const users = getStorage('users') || [];
-    if (users.length === 0) {
-      setStorage('users', [{ id: 'admin1', username: 'admin', password: 'adminpassword', role: 'admin' }]);
-    }
-  }, []);
 
   const backgroundStyle = {
     backgroundColor: '#f0f2f5', // Light gray background
@@ -108,13 +102,6 @@ const handleLogin = async () => {
 };
 
 
-const handleLogin = async () => {
-  setError('');
-  setMessage('');
-  if (!BACKEND) {
-    setError('Backend URL no configurado');
-    return;
-  }
   try {
     const res = await fetch(`${BACKEND.replace(/\/$/, '')}/api/auth/login`, {
       method: 'POST',
