@@ -9,33 +9,27 @@ import { getStorage, setStorage } from './utils/storage';
 const App = () => {
   const [currentUser, setCurrentUser] = useState(null);
   useEffect(() => {
-  const token = localStorage.getItem('authToken');
-  const user = localStorage.getItem('currentUser');
-
-  if (token && user && user !== 'null') {
-    try { 
-      setCurrentUser(JSON.parse(user)); 
-    } catch(e) {
-      console.error('Error al parsear usuario:', e);
+    const token = localStorage.getItem('authToken');
+    const user = localStorage.getItem('currentUser');
+    if (token && user) {
+      try { setCurrentUser(JSON.parse(user)); } catch(e){}
     }
-  }
-}, []);
+  }, []);
 
   const [currentPage, setCurrentPage] = useState('fedexShippingCapture');
   const activityTimer = useRef(null);
   const INACTIVITY_TIMEOUT = 10 * 60 * 1000; // 10 minutos en milisegundos
   const manualLogoutFlag = useRef(false); // Flag to suppress alert on manual logout
 
-const performLogout = (isManual = false) => {
-  localStorage.removeItem('authToken');
-  localStorage.removeItem('currentUser');
-  setCurrentUser(null);
-  clearTimeout(activityTimer.current);
-  if (!isManual) {
-    alert('Sesión cerrada por inactividad o cierre de navegador.');
-  }
-  manualLogoutFlag.current = false;
-};
+  const performLogout = (isManual = false) => {
+    setStorage('currentUser', null);
+    setCurrentUser(null);
+    clearTimeout(activityTimer.current);
+    if (!isManual) {
+      alert('Sesión cerrada por inactividad o cierre de navegador.');
+    }
+    manualLogoutFlag.current = false; // Reset flag after logout
+  };
 
   const handleLogoutButtonClick = () => {
     manualLogoutFlag.current = true; // Set flag for manual logout
@@ -48,6 +42,14 @@ const performLogout = (isManual = false) => {
       setCurrentUser(storedUser);
       resetActivityTimer();
     }
+
+    const handleBeforeUnload = () => {
+      // Only clear storage if it's not a manual logout already handled
+      if (!manualLogoutFlag.current) {
+        setStorage('currentUser', null);
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
 
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
