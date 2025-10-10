@@ -101,26 +101,4 @@ const handleLogin = async () => {
   );
 };
 
-
-  try {
-    const res = await fetch(`${BACKEND.replace(/\/$/, '')}/api/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password })
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(()=>({detail:'Error'}));
-      setError(err.detail || 'Error al iniciar sesión');
-      return;
-    }
-    const data = await res.json();
-    setStorage('authToken', data.token);
-    setStorage('currentUser', { username: data.username, role: data.role });
-    onLoginSuccess && onLoginSuccess({ username: data.username, role: data.role });
-  } catch (e) {
-    console.error(e);
-    setError('Error de red. Verifica la conexión con el backend.');
-  }
-};
-
 export default AuthLogin;
