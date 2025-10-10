@@ -39,7 +39,8 @@ const UserManagement = () => {
       return;
     }
 
-// Recupera el token guardado al hacer login
+    try {
+      // Recupera el token guardado al hacer login
 const token = localStorage.getItem("token");
 
 const res = await fetch(`${BACKEND}/api/users`, {
