@@ -23,14 +23,59 @@ const AuthLogin = ({ onLoginSuccess }) => {
     backgroundColor: '#f0f2f5', // Fondo gris claro
   };
 
-  const handleLogin = async () => {
-    setError('');
-    setMessage('');
+ const handleLogin = async () => {
+  setError('');
+  setMessage('');
 
-    if (!BACKEND) {
-      setError('Backend URL no configurado');
+  if (!BACKEND) {
+    setError('Backend URL no configurado');
+    return;
+  }
+
+  try {
+    const res = await fetch(`${BACKEND.replace(/\/$/, '')}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    });
+
+    let data = null;
+    try {
+      data = await res.json();
+    } catch {
+      data = {};
+    }
+
+    if (!res.ok) {
+      setError(data.detail || 'Error al iniciar sesión');
       return;
     }
+
+    // ⚙️ Ajusta este nombre según la respuesta real de tu backend:
+    const token = data.token || data.access_token;
+
+    if (!token) {
+      setError('No se recibió token del servidor');
+      return;
+    }
+
+    // Guarda el token en el navegador
+    localStorage.setItem('token', token);
+
+    // Guarda el usuario actual (si viene en la respuesta)
+    if (data.username) {
+      localStorage.setItem(
+        'currentUser',
+        JSON.stringify({ username: data.username, role: data.role || 'miembro' })
+      );
+    }
+
+    onLoginSuccess && onLoginSuccess({ username: data.username, role: data.role });
+  } catch (e) {
+    console.error(e);
+    setError('Error de red. Verifica la conexión con el backend.');
+  }
+};
 
     try {
       const res = await fetch(`${BACKEND.replace(/\/$/, '')}/api/auth/login`, {
