@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { getStorage, setStorage } from "../utils/storage";
 
-const BACKEND = process.env.REACT_APP_BACKEND_URL || "https://shipping-backend-kgm5.onrender.com";
+const BACKEND =
+  process.env.REACT_APP_BACKEND_URL ||
+  "https://shipping-backend-kgm5.onrender.com";
 
 const UserManagement = () => {
   const [users, setUsers] = useState([]);
@@ -12,19 +14,16 @@ const UserManagement = () => {
   const [error, setError] = useState("");
   const [editingUser, setEditingUser] = useState(null);
 
-  // 🔹 Cargar usuarios locales al iniciar
   useEffect(() => {
     const storedUsers = getStorage("users") || [];
     setUsers(storedUsers);
   }, []);
 
-  // 🔹 Guardar usuarios en localStorage
   const saveLocalUsers = (updated) => {
     setStorage("users", updated);
     setUsers(updated);
   };
 
-  // 🔹 Crear usuario en backend + guardar localmente
   const handleAddUser = async () => {
     setError("");
     setMessage("");
@@ -39,31 +38,39 @@ const UserManagement = () => {
       return;
     }
 
-    try {
-      // Recupera el token guardado al hacer login
-const token = localStorage.getItem("token");
+    const token = localStorage.getItem("token");
+    if (!token) {
+      setError("Debes iniciar sesión antes de crear usuarios.");
+      return;
+    }
 
-const res = await fetch(`${BACKEND}/api/users`, {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-    Authorization: token ? `Bearer ${token}` : "",
-  },
-  body: JSON.stringify({ username: newUsername, password: newPassword }),
-});
+    try {
+      const res = await fetch(`${BACKEND}/api/users`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          username: newUsername,
+          password: newPassword,
+          role: newRole,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || "Error al crear usuario en el servidor");
+        throw new Error(data.detail || "Error al crear usuario en el servidor");
       }
 
-      // Usuario creado correctamente en el backend
       const newUser = {
         id: Date.now().toString(),
         username: newUsername,
         password: newPassword,
         role: newRole,
       };
+
       const updated = [...users, newUser];
       saveLocalUsers(updated);
       setMessage("¡Usuario agregado con éxito!");
@@ -219,10 +226,7 @@ const res = await fetch(`${BACKEND}/api/users`, {
               ))
             ) : (
               <tr>
-                <td
-                  colSpan="3"
-                  className="text-center text-gray-500 py-4"
-                >
+                <td colSpan="3" className="text-center text-gray-500 py-4">
                   No hay usuarios registrados.
                 </td>
               </tr>

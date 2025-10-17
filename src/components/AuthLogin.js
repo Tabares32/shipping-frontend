@@ -11,6 +11,7 @@ const AuthLogin = ({ onLoginSuccess }) => {
     process.env.REACT_APP_BACKEND_URL ||
     "https://shipping-backend-kgm5.onrender.com";
 
+  // Crear usuario admin local si no hay ninguno
   useEffect(() => {
     const users = getStorage("users") || [];
     if (users.length === 0) {
@@ -29,50 +30,57 @@ const AuthLogin = ({ onLoginSuccess }) => {
     setError("");
     setMessage("");
 
-    if (!BACKEND) {
-      setError("Backend URL no configurado");
+    if (!username || !password) {
+      setError("Por favor ingresa usuario y contraseña");
       return;
     }
 
     try {
-      const res = await fetch(`${BACKEND.replace(/\/$/, "")}/api/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
-      });
+      const response = await fetch(
+        `${BACKEND.replace(/\/$/, "")}/api/auth/login`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ username, password }),
+        }
+      );
 
-      let data = null;
-      try {
-        data = await res.json();
-      } catch {
-        data = {};
-      }
+      const data = await response.json().catch(() => ({}));
 
-      if (!res.ok) {
+      if (!response.ok) {
         setError(data.detail || "Error al iniciar sesión");
         return;
       }
 
-      const token = data.token || data.access_token;
+      const token = data.access_token || data.token;
       if (!token) {
-        setError("No se recibió token del servidor");
+        setError("El servidor no devolvió un token");
         return;
       }
 
+      // Guardar token y usuario en localStorage
       localStorage.setItem("token", token);
       localStorage.setItem(
         "currentUser",
         JSON.stringify({
-          username: data.username,
-          role: data.role || "miembro",
+          username: data.username || username,
+          role: data.role || "user",
         })
       );
 
-      onLoginSuccess &&
-        onLoginSuccess({ username: data.username, role: data.role });
-    } catch (e) {
-      console.error(e);
-      setError("Error de red. Verifica la conexión con el backend.");
+      setMessage("Inicio de sesión exitoso 🎉");
+      setTimeout(() => {
+        if (onLoginSuccess)
+          onLoginSuccess({
+            username: data.username || username,
+            role: data.role || "user",
+          });
+      }, 800);
+    } catch (err) {
+      console.error("Error de login:", err);
+      setError("Error de conexión con el servidor");
     }
   };
 
@@ -89,8 +97,10 @@ const AuthLogin = ({ onLoginSuccess }) => {
         <h2 className="text-3xl font-bold text-center text-gray-800 mb-8">
           Iniciar Sesión
         </h2>
+
         {error && <p className="text-red-500 text-center mb-4">{error}</p>}
         {message && <p className="text-green-600 text-center mb-4">{message}</p>}
+
         <input
           type="text"
           placeholder="Usuario"
@@ -105,6 +115,7 @@ const AuthLogin = ({ onLoginSuccess }) => {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />
+
         <button
           onClick={handleLogin}
           className="w-full bg-black text-white py-3 rounded-xl hover:bg-gray-800 transition-all duration-300 text-lg font-semibold shadow-lg mb-4"
