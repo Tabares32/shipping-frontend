@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-import { getStorage, setStorage } from "../utils/storage";
 
 const BACKEND =
   process.env.REACT_APP_BACKEND_URL ||
@@ -9,20 +8,29 @@ const UserManagement = () => {
   const [users, setUsers] = useState([]);
   const [newUsername, setNewUsername] = useState("");
   const [newPassword, setNewPassword] = useState("");
-  const [newRole, setNewRole] = useState("normal");
+  const [newRole, setNewRole] = useState("user");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-  const [editingUser, setEditingUser] = useState(null);
 
+  // 🚀 Cargar usuarios reales del backend
   useEffect(() => {
-    const storedUsers = getStorage("users") || [];
-    setUsers(storedUsers);
+    const fetchUsers = async () => {
+      const token = localStorage.getItem("token");
+      if (!token) return;
+      try {
+        const res = await fetch(`${BACKEND}/api/users`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) throw new Error("No se pudo obtener la lista de usuarios");
+        const data = await res.json();
+        setUsers(data);
+      } catch (err) {
+        console.error(err);
+        setError("Error al cargar usuarios desde el servidor.");
+      }
+    };
+    fetchUsers();
   }, []);
-
-  const saveLocalUsers = (updated) => {
-    setStorage("users", updated);
-    setUsers(updated);
-  };
 
   const handleAddUser = async () => {
     setError("");
@@ -30,11 +38,6 @@ const UserManagement = () => {
 
     if (!newUsername || !newPassword) {
       setError("¡Nombre de usuario y contraseña son obligatorios!");
-      return;
-    }
-
-    if (users.some((u) => u.username === newUsername)) {
-      setError("¡Ese nombre de usuario ya existe!");
       return;
     }
 
@@ -54,56 +57,19 @@ const UserManagement = () => {
         body: JSON.stringify({
           username: newUsername,
           password: newPassword,
-          role: newRole,
         }),
       });
 
-      const data = await res.json().catch(() => ({}));
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Error al crear usuario");
 
-      if (!res.ok) {
-        throw new Error(data.detail || "Error al crear usuario en el servidor");
-      }
-
-      const newUser = {
-        id: Date.now().toString(),
-        username: newUsername,
-        password: newPassword,
-        role: newRole,
-      };
-
-      const updated = [...users, newUser];
-      saveLocalUsers(updated);
+      setUsers([...users, { id: data.user.id, username: newUsername, role: "user" }]);
       setMessage("¡Usuario agregado con éxito!");
       setNewUsername("");
       setNewPassword("");
-      setNewRole("normal");
     } catch (e) {
-      console.error("Error creando usuario:", e);
-      setError("No se pudo crear usuario en el backend.");
-    }
-  };
-
-  const handleEditClick = (user) => setEditingUser({ ...user });
-  const handleCancelEdit = () => setEditingUser(null);
-
-  const handleSaveEdit = () => {
-    if (!editingUser.username || !editingUser.password) {
-      setError("¡Nombre de usuario y contraseña no pueden estar vacíos!");
-      return;
-    }
-    const updated = users.map((u) =>
-      u.id === editingUser.id ? editingUser : u
-    );
-    saveLocalUsers(updated);
-    setEditingUser(null);
-    setMessage("¡Usuario actualizado con éxito!");
-  };
-
-  const handleRemoveUser = (id) => {
-    if (window.confirm("¿Seguro que deseas eliminar este usuario?")) {
-      const updated = users.filter((u) => u.id !== id);
-      saveLocalUsers(updated);
-      setMessage("Usuario eliminado correctamente.");
+      console.error(e);
+      setError(e.message);
     }
   };
 
@@ -118,70 +84,32 @@ const UserManagement = () => {
 
       <div className="mb-8 p-6 border border-gray-200 rounded-lg bg-gray-50">
         <h3 className="text-xl font-semibold text-gray-700 mb-4">
-          {editingUser ? "Editar Usuario" : "Agregar Nuevo Usuario"}
+          Agregar Nuevo Usuario
         </h3>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
           <input
             type="text"
             placeholder="Usuario"
-            value={editingUser ? editingUser.username : newUsername}
-            onChange={(e) =>
-              editingUser
-                ? setEditingUser({ ...editingUser, username: e.target.value })
-                : setNewUsername(e.target.value)
-            }
-            disabled={!!editingUser}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black"
+            value={newUsername}
+            onChange={(e) => setNewUsername(e.target.value)}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg"
           />
           <input
             type="password"
             placeholder="Contraseña"
-            value={editingUser ? editingUser.password : newPassword}
-            onChange={(e) =>
-              editingUser
-                ? setEditingUser({ ...editingUser, password: e.target.value })
-                : setNewPassword(e.target.value)
-            }
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg"
           />
-          <select
-            value={editingUser ? editingUser.role : newRole}
-            onChange={(e) =>
-              editingUser
-                ? setEditingUser({ ...editingUser, role: e.target.value })
-                : setNewRole(e.target.value)
-            }
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black md:col-span-2"
-          >
-            <option value="normal">Normal</option>
-            <option value="admin">Administrador</option>
-          </select>
         </div>
 
-        {editingUser ? (
-          <div className="flex justify-end gap-4">
-            <button
-              onClick={handleSaveEdit}
-              className="bg-green-600 text-white px-4 py-2 rounded-lg"
-            >
-              Guardar Cambios
-            </button>
-            <button
-              onClick={handleCancelEdit}
-              className="bg-gray-500 text-white px-4 py-2 rounded-lg"
-            >
-              Cancelar
-            </button>
-          </div>
-        ) : (
-          <button
-            onClick={handleAddUser}
-            className="w-full bg-black text-white py-2 rounded-lg hover:bg-gray-800"
-          >
-            Agregar Usuario
-          </button>
-        )}
+        <button
+          onClick={handleAddUser}
+          className="w-full bg-black text-white py-2 rounded-lg hover:bg-gray-800"
+        >
+          Agregar Usuario
+        </button>
       </div>
 
       <h3 className="text-xl font-semibold text-gray-700 mb-4">
@@ -197,9 +125,6 @@ const UserManagement = () => {
               <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600">
                 Rol
               </th>
-              <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600">
-                Acciones
-              </th>
             </tr>
           </thead>
           <tbody>
@@ -208,20 +133,6 @@ const UserManagement = () => {
                 <tr key={u.id} className="hover:bg-gray-50 border-b">
                   <td className="py-3 px-4">{u.username}</td>
                   <td className="py-3 px-4">{u.role}</td>
-                  <td className="py-3 px-4">
-                    <button
-                      onClick={() => handleEditClick(u)}
-                      className="bg-blue-600 text-white px-3 py-1 rounded-md mr-2"
-                    >
-                      Editar
-                    </button>
-                    <button
-                      onClick={() => handleRemoveUser(u.id)}
-                      className="bg-red-500 text-white px-3 py-1 rounded-md"
-                    >
-                      Eliminar
-                    </button>
-                  </td>
                 </tr>
               ))
             ) : (
