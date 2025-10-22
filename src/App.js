@@ -1,25 +1,33 @@
+// src/App.js
 const BACKEND = process.env.REACT_APP_BACKEND_URL || '';
+
 import React, { useState, useEffect, useRef } from 'react';
 import AuthLogin from './components/AuthLogin';
 import DashboardHeader from './components/DashboardHeader';
 import DashboardSidebar from './components/DashboardSidebar';
 import PublicDashboard from './components/PublicDashboard';
-import { getStorage, setStorage } from './utils/storage';
+import { getStorage, setStorage, syncStorageFromBackend } from './utils/storage';
 
 const App = () => {
   const [currentUser, setCurrentUser] = useState(null);
+  const [isSyncing, setIsSyncing] = useState(false); // 🆕 indicador visual de sincronización
+
   useEffect(() => {
     const token = localStorage.getItem('authToken');
     const user = localStorage.getItem('currentUser');
     if (token && user) {
-      try { setCurrentUser(JSON.parse(user)); } catch(e){}
+      try {
+        setCurrentUser(JSON.parse(user));
+      } catch (e) {
+        console.error("Error al leer usuario almacenado:", e);
+      }
     }
   }, []);
 
   const [currentPage, setCurrentPage] = useState('fedexShippingCapture');
   const activityTimer = useRef(null);
-  const INACTIVITY_TIMEOUT = 10 * 60 * 1000; // 10 minutos en milisegundos
-  const manualLogoutFlag = useRef(false); // Flag to suppress alert on manual logout
+  const INACTIVITY_TIMEOUT = 10 * 60 * 1000; // 10 minutos
+  const manualLogoutFlag = useRef(false);
 
   const performLogout = (isManual = false) => {
     setStorage('currentUser', null);
@@ -28,23 +36,36 @@ const App = () => {
     if (!isManual) {
       alert('Sesión cerrada por inactividad o cierre de navegador.');
     }
-    manualLogoutFlag.current = false; // Reset flag after logout
+    manualLogoutFlag.current = false;
   };
 
   const handleLogoutButtonClick = () => {
-    manualLogoutFlag.current = true; // Set flag for manual logout
-    performLogout(true); // Perform manual logout
+    manualLogoutFlag.current = true;
+    performLogout(true);
   };
 
+  // 🔄 Sincronización inicial al cargar App
   useEffect(() => {
     const storedUser = getStorage('currentUser');
     if (storedUser) {
       setCurrentUser(storedUser);
       resetActivityTimer();
+
+      // 🔄 Sincronizar datos globales del backend
+      (async () => {
+        try {
+          setIsSyncing(true);
+          await syncStorageFromBackend();
+          console.log("✅ Datos sincronizados al cargar la app.");
+        } catch (e) {
+          console.warn("No se pudo sincronizar al cargar la app:", e);
+        } finally {
+          setIsSyncing(false);
+        }
+      })();
     }
 
     const handleBeforeUnload = () => {
-      // Only clear storage if it's not a manual logout already handled
       if (!manualLogoutFlag.current) {
         setStorage('currentUser', null);
       }
@@ -77,34 +98,65 @@ const App = () => {
     activityTimer.current = setTimeout(() => performLogout(false), INACTIVITY_TIMEOUT);
   };
 
-  const handleLoginSuccess = (user) => {
+  // 🔐 Login exitoso
+  const handleLoginSuccess = async (user) => {
     setCurrentUser(user);
-    setCurrentPage('fedexShippingCapture'); // Default page after login
+    setCurrentPage('fedexShippingCapture');
     resetActivityTimer();
+
+    // 🔄 Sincronización global tras login
+    try {
+      setIsSyncing(true);
+      await syncStorageFromBackend();
+      console.log("✅ Datos sincronizados tras inicio de sesión.");
+    } catch (e) {
+      console.warn("No se pudo sincronizar al iniciar sesión:", e);
+    } finally {
+      setIsSyncing(false);
+    }
   };
 
   const handleNavigate = (page) => {
     setCurrentPage(page);
-    resetActivityTimer(); // Reset timer on navigation
+    resetActivityTimer();
   };
 
-  // Function to navigate to UserManagement from DashboardHeader
   const handleNavigateToUserManagement = () => {
     setCurrentPage('userManagement');
     resetActivityTimer();
   };
 
-  // Si currentUser es null, mostrar solo el componente de login
+  // 🚪 Si no hay sesión, mostrar login
   if (!currentUser) {
     return <AuthLogin onLoginSuccess={handleLoginSuccess} />;
   }
 
-  // Si currentUser existe, mostrar el dashboard completo
+  // 💡 Si está sincronizando, mostrar overlay de carga
+  if (isSyncing) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-gray-100">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-black mx-auto mb-4"></div>
+          <p className="text-gray-700 text-lg font-semibold">Sincronizando datos...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 🧭 Vista principal del dashboard
   return (
     <div className="flex flex-col h-screen bg-gray-100">
-      <DashboardHeader currentUser={currentUser} onLogout={handleLogoutButtonClick} onNavigateToUserManagement={handleNavigateToUserManagement} />
+      <DashboardHeader
+        currentUser={currentUser}
+        onLogout={handleLogoutButtonClick}
+        onNavigateToUserManagement={handleNavigateToUserManagement}
+      />
       <div className="flex flex-1 overflow-hidden">
-        <DashboardSidebar currentPage={currentPage} onNavigate={handleNavigate} currentUser={currentUser} />
+        <DashboardSidebar
+          currentPage={currentPage}
+          onNavigate={handleNavigate}
+          currentUser={currentUser}
+        />
         <PublicDashboard currentPage={currentPage} currentUser={currentUser} />
       </div>
     </div>

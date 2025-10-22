@@ -1,33 +1,18 @@
 // src/utils/storage.js
-// ✅ Totalmente compatible con React, guarda y sincroniza datos entre usuarios
+// ✅ Sincroniza datos entre usuarios (global), mantiene localStorage actualizado
 
 const BACKEND =
   process.env.REACT_APP_BACKEND_URL ||
   "https://shipping-backend-kgm5.onrender.com";
 
-// --- Lectura con fallback remoto ---
+// --- Leer local + iniciar sincronización remota ---
 export const getStorage = (key) => {
   try {
-    // 1️⃣ Intentar leer desde localStorage
     const storedValue = localStorage.getItem(key);
     if (storedValue) return JSON.parse(storedValue);
 
-    // 2️⃣ Si no hay nada local, intentar obtenerlo del backend (sin bloquear UI)
-    const token = localStorage.getItem("token");
-    if (token) {
-      fetch(`${BACKEND}/api/storage/${key}`, {
-        headers: { Authorization: "Bearer " + token },
-      })
-        .then((res) => res.json())
-        .then((data) => {
-          if (data && data.value !== undefined && data.value !== null) {
-            localStorage.setItem(key, JSON.stringify(data.value));
-            console.log(`✅ Datos sincronizados desde backend (${key})`);
-          }
-        })
-        .catch((e) => console.warn("Backend storage fetch error:", e));
-    }
-
+    // Si no hay local, iniciar carga remota
+    syncStorageFromBackend(key);
     return null;
   } catch (e) {
     console.error("Error leyendo storage:", e);
@@ -35,14 +20,12 @@ export const getStorage = (key) => {
   }
 };
 
-// --- Escritura sincronizada (local + backend) ---
+// --- Guardar local + backend ---
 export const setStorage = (key, value) => {
   try {
-    // Guardar localmente primero
     localStorage.setItem(key, JSON.stringify(value));
-
-    // Si hay token, también guardar en backend (no bloquea la app)
     const token = localStorage.getItem("token");
+
     if (token) {
       fetch(`${BACKEND}/api/storage/${key}`, {
         method: "POST",
@@ -58,7 +41,7 @@ export const setStorage = (key, value) => {
   }
 };
 
-// --- Inicialización segura ---
+// --- Crear clave por defecto ---
 export const createStorage = (key, defaultValue) => {
   const existing = getStorage(key);
   if (existing === null) {
@@ -66,6 +49,43 @@ export const createStorage = (key, defaultValue) => {
     return defaultValue;
   }
   return existing;
+};
+
+// --- Sincronización global manual/automática ---
+export const syncStorageFromBackend = async (key = null) => {
+  const token = localStorage.getItem("token");
+  if (!token) return;
+
+  try {
+    // Si se pide un solo key
+    if (key) {
+      const res = await fetch(`${BACKEND}/api/storage/${key}`, {
+        headers: { Authorization: "Bearer " + token },
+      });
+      const data = await res.json();
+      if (data?.value !== undefined && data?.value !== null) {
+        localStorage.setItem(key, JSON.stringify(data.value));
+      }
+      return;
+    }
+
+    // Si no se pasa key, obtener todas las claves conocidas
+    const keys = Object.keys(localStorage);
+    for (const k of keys) {
+      if (k.startsWith("BOM") || k.startsWith("FG") || k.startsWith("INV")) {
+        const res = await fetch(`${BACKEND}/api/storage/${k}`, {
+          headers: { Authorization: "Bearer " + token },
+        });
+        const data = await res.json();
+        if (data?.value !== undefined && data?.value !== null) {
+          localStorage.setItem(k, JSON.stringify(data.value));
+        }
+      }
+    }
+    console.log("🔄 Datos sincronizados desde backend.");
+  } catch (e) {
+    console.warn("Error sincronizando datos desde backend:", e);
+  }
 };
 
 // --- Seguridad ---
