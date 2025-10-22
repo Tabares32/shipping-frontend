@@ -1,94 +1,117 @@
 // src/utils/storage.js
-// ✅ Sincroniza datos entre usuarios (global), mantiene localStorage actualizado
+const BACKEND = process.env.REACT_APP_BACKEND_URL || '';
 
-const BACKEND =
-  process.env.REACT_APP_BACKEND_URL ||
-  "https://shipping-backend-kgm5.onrender.com";
-
-// --- Leer local + iniciar sincronización remota ---
-export const getStorage = (key) => {
-  try {
-    const storedValue = localStorage.getItem(key);
-    if (storedValue) return JSON.parse(storedValue);
-
-    // Si no hay local, iniciar carga remota
-    syncStorageFromBackend(key);
-    return null;
-  } catch (e) {
-    console.error("Error leyendo storage:", e);
-    return null;
-  }
-};
-
-// --- Guardar local + backend ---
+/**
+ * Guarda un valor en localStorage de forma segura
+ */
 export const setStorage = (key, value) => {
   try {
-    localStorage.setItem(key, JSON.stringify(value));
-    const token = localStorage.getItem("token");
-
-    if (token) {
-      fetch(`${BACKEND}/api/storage/${key}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
-        },
-        body: JSON.stringify({ value }),
-      }).catch((e) => console.warn("Backend storage save error:", e));
+    if (value === null) {
+      localStorage.removeItem(key);
+    } else {
+      localStorage.setItem(key, JSON.stringify(value));
     }
-  } catch (e) {
-    console.error("Error guardando en storage:", e);
+  } catch (error) {
+    console.error(`❌ Error al guardar en localStorage (${key}):`, error);
   }
 };
 
-// --- Crear clave por defecto ---
-export const createStorage = (key, defaultValue) => {
-  const existing = getStorage(key);
-  if (existing === null) {
-    setStorage(key, defaultValue);
+/**
+ * Obtiene un valor de localStorage de forma segura
+ */
+export const getStorage = (key, defaultValue = null) => {
+  try {
+    const value = localStorage.getItem(key);
+    return value ? JSON.parse(value) : defaultValue;
+  } catch (error) {
+    console.error(`❌ Error al leer de localStorage (${key}):`, error);
     return defaultValue;
   }
-  return existing;
 };
 
-// --- Sincronización global manual/automática ---
-export const syncStorageFromBackend = async (key = null) => {
-  const token = localStorage.getItem("token");
-  if (!token) return;
-
+/**
+ * Limpia completamente el almacenamiento local
+ */
+export const clearStorage = () => {
   try {
-    // Si se pide un solo key
-    if (key) {
-      const res = await fetch(`${BACKEND}/api/storage/${key}`, {
-        headers: { Authorization: "Bearer " + token },
-      });
-      const data = await res.json();
-      if (data?.value !== undefined && data?.value !== null) {
-        localStorage.setItem(key, JSON.stringify(data.value));
-      }
-      return;
-    }
-
-    // Si no se pasa key, obtener todas las claves conocidas
-    const keys = Object.keys(localStorage);
-    for (const k of keys) {
-      if (k.startsWith("BOM") || k.startsWith("FG") || k.startsWith("INV")) {
-        const res = await fetch(`${BACKEND}/api/storage/${k}`, {
-          headers: { Authorization: "Bearer " + token },
-        });
-        const data = await res.json();
-        if (data?.value !== undefined && data?.value !== null) {
-          localStorage.setItem(k, JSON.stringify(data.value));
-        }
-      }
-    }
-    console.log("🔄 Datos sincronizados desde backend.");
-  } catch (e) {
-    console.warn("Error sincronizando datos desde backend:", e);
+    localStorage.clear();
+  } catch (error) {
+    console.error('❌ Error al limpiar localStorage:', error);
   }
 };
 
-// --- Seguridad ---
-export function saveCredentials() {
-  console.warn("Guardado de credenciales desactivado por seguridad.");
-}
+/**
+ * 🔄 Sincroniza datos locales con el backend
+ * Descarga toda la información global (BOM, Finished Goods, etc.)
+ * y la almacena en localStorage para todos los usuarios.
+ */
+export const syncStorageFromBackend = async () => {
+  if (!BACKEND) {
+    console.warn("⚠️ No se definió REACT_APP_BACKEND_URL — sincronización omitida.");
+    return;
+  }
+
+  console.log("🌐 Iniciando sincronización desde backend:", BACKEND);
+
+  try {
+    const response = await fetch(`${BACKEND}/api/sync/data`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Backend respondió con ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    // Guardar cada grupo de datos en localStorage
+    if (data?.bom) setStorage('bomData', data.bom);
+    if (data?.finishedGoods) setStorage('finishedGoodsData', data.finishedGoods);
+    if (data?.inventory) setStorage('inventoryData', data.inventory);
+    if (data?.users) setStorage('users', data.users);
+
+    console.log("✅ Sincronización completada exitosamente.");
+    return data;
+  } catch (error) {
+    console.error("❌ Error durante la sincronización desde backend:", error);
+    throw error;
+  }
+};
+
+/**
+ * 🔼 (Opcional) Enviar datos locales al backend si quieres sincronizar subida
+ */
+export const syncStorageToBackend = async () => {
+  if (!BACKEND) return;
+
+  const bomData = getStorage('bomData', []);
+  const finishedGoods = getStorage('finishedGoodsData', []);
+  const inventory = getStorage('inventoryData', []);
+  const users = getStorage('users', []);
+
+  try {
+    const response = await fetch(`${BACKEND}/api/sync/upload`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        bom: bomData,
+        finishedGoods,
+        inventory,
+        users,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Error del backend: ${response.status}`);
+    }
+
+    console.log("📤 Datos locales enviados al backend correctamente.");
+  } catch (error) {
+    console.error("❌ Error al subir datos al backend:", error);
+  }
+};
