@@ -1,70 +1,53 @@
 // src/utils/storage.js
-// Manejo universal de almacenamiento (local + backend opcional)
+// ✅ Compatible con React y no rompe componentes existentes
 
 const BACKEND =
   process.env.REACT_APP_BACKEND_URL ||
   "https://shipping-backend-kgm5.onrender.com";
 
-// ✅ Lee un valor del storage (usa backend si hay token)
-export const getStorage = async (key) => {
+// --- Funciones síncronas (no rompen .filter(), .map(), etc.) ---
+export const getStorage = (key) => {
   try {
-    const token = localStorage.getItem("token");
-
-    if (token) {
-      const res = await fetch(`${BACKEND}/api/storage/${key}`, {
-        headers: { Authorization: "Bearer " + token },
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        return data?.value || null;
-      }
-    }
-
-    // Fallback local
-    const localValue = localStorage.getItem(key);
-    return localValue ? JSON.parse(localValue) : null;
+    const storedValue = localStorage.getItem(key);
+    return storedValue ? JSON.parse(storedValue) : null;
   } catch (e) {
     console.error("Error leyendo storage:", e);
     return null;
   }
 };
 
-// ✅ Guarda un valor (usa backend + localStorage)
-export const setStorage = async (key, value) => {
+export const setStorage = (key, value) => {
   try {
-    const token = localStorage.getItem("token");
-
-    // Guardar local siempre
     localStorage.setItem(key, JSON.stringify(value));
 
-    // Guardar en backend si el usuario está logueado
+    // 🔄 Guardar también en backend si hay token (no bloquea la app)
+    const token = localStorage.getItem("token");
     if (token) {
-      await fetch(`${BACKEND}/api/storage/${key}`, {
+      // Se hace de forma no bloqueante
+      fetch(`${BACKEND}/api/storage/${key}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: "Bearer " + token,
         },
         body: JSON.stringify({ value }),
-      });
+      }).catch((e) => console.warn("Backend storage error:", e));
     }
   } catch (e) {
-    console.error("Error guardando storage:", e);
+    console.error("Error guardando en storage:", e);
   }
 };
 
-// ✅ Crear una clave con valor por defecto si no existe
-export const createStorage = async (key, defaultValue) => {
-  const existing = await getStorage(key);
+export const createStorage = (key, defaultValue) => {
+  const existing = getStorage(key);
   if (existing === null) {
-    await setStorage(key, defaultValue);
+    setStorage(key, defaultValue);
     return defaultValue;
   }
   return existing;
 };
 
-// ❌ Desactivamos guardado de credenciales directas
+// --- Seguridad ---
 export function saveCredentials() {
   console.warn("Guardado de credenciales desactivado por seguridad.");
 }
