@@ -8,7 +8,7 @@ const DashboardSidebar = ({ currentPage, onNavigate, currentUser }) => {
     { name: '--- Gestión de Datos ---', page: 'separator1', roles: ['admin', 'user'] },
     { name: 'Gestión de Finished Goods', page: 'finishedGoodManagement', roles: ['admin'] },
     { name: 'Gestión de Observaciones', page: 'observationManagement', roles: ['admin'] },
-    { name: 'Gestión de Materiales (BOM)', page: 'materialManagement', roles: ['admin'] },
+    { name: 'Gestión de Materiales (BOM)', page: 'materialManagement', roles: ['admin', 'user'] },
     { name: '--- Reportes y Búsquedas ---', page: 'separator2', roles: ['admin', 'user'] },
     { name: 'Lista de Números de Parte', page: 'finishedGoodsReport', roles: ['admin', 'user'] },
     { name: 'Buscar por Invoice', page: 'shippingSearch', roles: ['admin', 'user'] },

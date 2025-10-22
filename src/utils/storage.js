@@ -1,29 +1,49 @@
 // src/utils/storage.js
-// ✅ Compatible con React y no rompe componentes existentes
+// ✅ Totalmente compatible con React, guarda y sincroniza datos entre usuarios
 
 const BACKEND =
   process.env.REACT_APP_BACKEND_URL ||
   "https://shipping-backend-kgm5.onrender.com";
 
-// --- Funciones síncronas (no rompen .filter(), .map(), etc.) ---
+// --- Lectura con fallback remoto ---
 export const getStorage = (key) => {
   try {
+    // 1️⃣ Intentar leer desde localStorage
     const storedValue = localStorage.getItem(key);
-    return storedValue ? JSON.parse(storedValue) : null;
+    if (storedValue) return JSON.parse(storedValue);
+
+    // 2️⃣ Si no hay nada local, intentar obtenerlo del backend (sin bloquear UI)
+    const token = localStorage.getItem("token");
+    if (token) {
+      fetch(`${BACKEND}/api/storage/${key}`, {
+        headers: { Authorization: "Bearer " + token },
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data && data.value !== undefined && data.value !== null) {
+            localStorage.setItem(key, JSON.stringify(data.value));
+            console.log(`✅ Datos sincronizados desde backend (${key})`);
+          }
+        })
+        .catch((e) => console.warn("Backend storage fetch error:", e));
+    }
+
+    return null;
   } catch (e) {
     console.error("Error leyendo storage:", e);
     return null;
   }
 };
 
+// --- Escritura sincronizada (local + backend) ---
 export const setStorage = (key, value) => {
   try {
+    // Guardar localmente primero
     localStorage.setItem(key, JSON.stringify(value));
 
-    // 🔄 Guardar también en backend si hay token (no bloquea la app)
+    // Si hay token, también guardar en backend (no bloquea la app)
     const token = localStorage.getItem("token");
     if (token) {
-      // Se hace de forma no bloqueante
       fetch(`${BACKEND}/api/storage/${key}`, {
         method: "POST",
         headers: {
@@ -31,13 +51,14 @@ export const setStorage = (key, value) => {
           Authorization: "Bearer " + token,
         },
         body: JSON.stringify({ value }),
-      }).catch((e) => console.warn("Backend storage error:", e));
+      }).catch((e) => console.warn("Backend storage save error:", e));
     }
   } catch (e) {
     console.error("Error guardando en storage:", e);
   }
 };
 
+// --- Inicialización segura ---
 export const createStorage = (key, defaultValue) => {
   const existing = getStorage(key);
   if (existing === null) {
