@@ -106,19 +106,6 @@ export async function loadData(key) {
   return local;
 }
 
-// --- Sincronización automática al iniciar sesión ---
-export async function initializeSync() {
-  const token = getToken();
-  if (!token) return;
-  console.log("⏳ Iniciando sincronización automática...");
-  await syncDownload();
-
-  // Repetir sincronización cada 60 segundos
-  setInterval(() => {
-    syncUpload();
-  }, 60000);
-}
-
 /**
  * 🔁 Inicializa la sincronización automática con backend al cargar la app
  */
@@ -131,3 +118,9 @@ export const initializeSync = async () => {
     console.warn("⚠️ No se pudo sincronizar al inicio:", err);
   }
 };
+
+  // Repetir sincronización cada 60 segundos
+  setInterval(() => {
+    syncUpload();
+  }, 60000);
+}
