@@ -7,6 +7,15 @@ import DashboardHeader from './components/DashboardHeader';
 import DashboardSidebar from './components/DashboardSidebar';
 import PublicDashboard from './components/PublicDashboard';
 import { getStorage, setStorage, syncStorageFromBackend } from './utils/storage';
+import { initializeSync } from "@/utils/storage";
+import { saveData } from "@/utils/storage";
+
+// Ejemplo para FedEx
+saveData("fedexOrders", ordersArray);
+
+useEffect(() => {
+  initializeSync();
+}, []);
 
 const App = () => {
   const [currentUser, setCurrentUser] = useState(null);
