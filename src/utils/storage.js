@@ -118,3 +118,16 @@ export async function initializeSync() {
     syncUpload();
   }, 60000);
 }
+
+/**
+ * 🔁 Inicializa la sincronización automática con backend al cargar la app
+ */
+export const initializeSync = async () => {
+  console.log("🚀 Inicializando sincronización automática...");
+  try {
+    await syncStorageFromBackend();
+    console.log("✅ Datos sincronizados correctamente al inicio.");
+  } catch (err) {
+    console.warn("⚠️ No se pudo sincronizar al inicio:", err);
+  }
+};
