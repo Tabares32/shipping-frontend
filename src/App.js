@@ -1,24 +1,43 @@
 // src/App.js
-const BACKEND = process.env.REACT_APP_BACKEND_URL || '';
-
-import React, { useState, useEffect, useRef } from 'react';
-import AuthLogin from './components/AuthLogin';
-import DashboardHeader from './components/DashboardHeader';
-import DashboardSidebar from './components/DashboardSidebar';
-import PublicDashboard from './components/PublicDashboard';
-import { getStorage, setStorage, syncStorageFromBackend, initializeSync } from './utils/storage';
-
-useEffect(() => {
-  initializeSync();
-}, []);
+import React, { useState, useEffect, useRef } from "react";
+import AuthLogin from "./components/AuthLogin";
+import DashboardHeader from "./components/DashboardHeader";
+import DashboardSidebar from "./components/DashboardSidebar";
+import PublicDashboard from "./components/PublicDashboard";
+import {
+  getStorage,
+  setStorage,
+  syncStorageFromBackend,
+  initializeSync,
+} from "./utils/storage";
 
 const App = () => {
   const [currentUser, setCurrentUser] = useState(null);
-  const [isSyncing, setIsSyncing] = useState(false); // 🆕 indicador visual de sincronización
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [currentPage, setCurrentPage] = useState("fedexShippingCapture");
+  const activityTimer = useRef(null);
+  const manualLogoutFlag = useRef(false);
+  const INACTIVITY_TIMEOUT = 10 * 60 * 1000; // 10 minutos
 
+  // 🚀 Sincronización inicial global al cargar la app
   useEffect(() => {
-    const token = localStorage.getItem('authToken');
-    const user = localStorage.getItem('currentUser');
+    (async () => {
+      try {
+        setIsSyncing(true);
+        await initializeSync();
+        console.log("✅ Sincronización inicial completada");
+      } catch (error) {
+        console.warn("⚠️ Error en sincronización inicial:", error);
+      } finally {
+        setIsSyncing(false);
+      }
+    })();
+  }, []);
+
+  // 🔐 Cargar sesión de usuario desde localStorage
+  useEffect(() => {
+    const token = localStorage.getItem("authToken");
+    const user = localStorage.getItem("currentUser");
     if (token && user) {
       try {
         setCurrentUser(JSON.parse(user));
@@ -28,17 +47,18 @@ const App = () => {
     }
   }, []);
 
-  const [currentPage, setCurrentPage] = useState('fedexShippingCapture');
-  const activityTimer = useRef(null);
-  const INACTIVITY_TIMEOUT = 10 * 60 * 1000; // 10 minutos
-  const manualLogoutFlag = useRef(false);
+  // 🕓 Control de inactividad
+  const resetActivityTimer = () => {
+    clearTimeout(activityTimer.current);
+    activityTimer.current = setTimeout(() => performLogout(false), INACTIVITY_TIMEOUT);
+  };
 
   const performLogout = (isManual = false) => {
-    setStorage('currentUser', null);
+    setStorage("currentUser", null);
     setCurrentUser(null);
     clearTimeout(activityTimer.current);
     if (!isManual) {
-      alert('Sesión cerrada por inactividad o cierre de navegador.');
+      alert("Sesión cerrada por inactividad o cierre de navegador.");
     }
     manualLogoutFlag.current = false;
   };
@@ -48,100 +68,60 @@ const App = () => {
     performLogout(true);
   };
 
-  // 🔄 Sincronización inicial al cargar App
-  useEffect(() => {
-    const storedUser = getStorage('currentUser');
-    if (storedUser) {
-      setCurrentUser(storedUser);
-      resetActivityTimer();
-
-      // 🔄 Sincronizar datos globales del backend
-      (async () => {
-        try {
-          setIsSyncing(true);
-          await syncStorageFromBackend();
-          console.log("✅ Datos sincronizados al cargar la app.");
-        } catch (e) {
-          console.warn("No se pudo sincronizar al cargar la app:", e);
-        } finally {
-          setIsSyncing(false);
-        }
-      })();
-    }
-
-    const handleBeforeUnload = () => {
-      if (!manualLogoutFlag.current) {
-        setStorage('currentUser', null);
-      }
-    };
-    window.addEventListener('beforeunload', handleBeforeUnload);
-
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-      clearTimeout(activityTimer.current);
-    };
-  }, []);
-
+  // 🎯 Detectar actividad del usuario
   useEffect(() => {
     if (currentUser) {
       resetActivityTimer();
-      const events = ['mousemove', 'keypress', 'click'];
-      events.forEach(event => window.addEventListener(event, resetActivityTimer));
+      const events = ["mousemove", "keypress", "click"];
+      events.forEach((e) => window.addEventListener(e, resetActivityTimer));
+      return () => events.forEach((e) => window.removeEventListener(e, resetActivityTimer));
     } else {
       clearTimeout(activityTimer.current);
-      const events = ['mousemove', 'keypress', 'click'];
-      events.forEach(event => window.removeEventListener(event, resetActivityTimer));
     }
-    return () => {
-      clearTimeout(activityTimer.current);
-    };
   }, [currentUser]);
 
-  const resetActivityTimer = () => {
-    clearTimeout(activityTimer.current);
-    activityTimer.current = setTimeout(() => performLogout(false), INACTIVITY_TIMEOUT);
-  };
-
-  // 🔐 Login exitoso
+  // 🔄 Sincronización tras login
   const handleLoginSuccess = async (user) => {
     setCurrentUser(user);
-    setCurrentPage('fedexShippingCapture');
+    setCurrentPage("fedexShippingCapture");
     resetActivityTimer();
 
-    // 🔄 Sincronización global tras login
     try {
       setIsSyncing(true);
       await syncStorageFromBackend();
       console.log("✅ Datos sincronizados tras inicio de sesión.");
     } catch (e) {
-      console.warn("No se pudo sincronizar al iniciar sesión:", e);
+      console.warn("No se pudo sincronizar tras login:", e);
     } finally {
       setIsSyncing(false);
     }
   };
 
+  // 🧭 Navegación
   const handleNavigate = (page) => {
     setCurrentPage(page);
     resetActivityTimer();
   };
 
   const handleNavigateToUserManagement = () => {
-    setCurrentPage('userManagement');
+    setCurrentPage("userManagement");
     resetActivityTimer();
   };
 
-  // 🚪 Si no hay sesión, mostrar login
+  // 🔐 Si no hay sesión, mostrar login
   if (!currentUser) {
     return <AuthLogin onLoginSuccess={handleLoginSuccess} />;
   }
 
-  // 💡 Si está sincronizando, mostrar overlay de carga
+  // ⏳ Si está sincronizando, mostrar overlay de carga
   if (isSyncing) {
     return (
       <div className="flex items-center justify-center h-screen bg-gray-100">
         <div className="text-center">
           <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-black mx-auto mb-4"></div>
-          <p className="text-gray-700 text-lg font-semibold">Sincronizando datos...</p>
+          <p className="text-gray-700 text-lg font-semibold">
+            Sincronizando datos...
+          </p>
         </div>
       </div>
     );
