@@ -1,3 +1,4 @@
+// ✅ src/components/UserManagement.js
 import React, { useState, useEffect } from "react";
 
 const UserManagement = () => {
@@ -12,7 +13,7 @@ const UserManagement = () => {
     process.env.REACT_APP_BACKEND_URL ||
     "https://shipping-backend-kgm5.onrender.com";
 
-  const token = localStorage.getItem("token");
+  const token = localStorage.getItem("authToken"); // ✅ corregido
   const currentUser = JSON.parse(localStorage.getItem("currentUser") || "{}");
 
   // 🔹 Cargar lista de usuarios
@@ -25,11 +26,15 @@ const UserManagement = () => {
           Authorization: `Bearer ${token}`,
         },
       });
-      if (res.status === 401) {
-        setError("Sesión expirada. Vuelve a iniciar sesión.");
+
+      const data = await res.json();
+
+      if (!res.ok || !Array.isArray(data)) {
+        setError(data.detail || "No tienes permisos para ver usuarios.");
+        setUsers([]);
         return;
       }
-      const data = await res.json();
+
       setUsers(data);
     } catch (err) {
       console.error("Error cargando usuarios:", err);
@@ -138,13 +143,21 @@ const UserManagement = () => {
               </tr>
             </thead>
             <tbody>
-              {users.map((u) => (
-                <tr key={u.id} className="border-b hover:bg-gray-50">
-                  <td className="p-3">{u.id}</td>
-                  <td className="p-3">{u.username}</td>
-                  <td className="p-3 capitalize">{u.role}</td>
+              {Array.isArray(users) ? (
+                users.map((u) => (
+                  <tr key={u.id} className="border-b hover:bg-gray-50">
+                    <td className="p-3">{u.id}</td>
+                    <td className="p-3">{u.username}</td>
+                    <td className="p-3 capitalize">{u.role}</td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="3" className="text-red-500 p-3">
+                    No tienes permisos para ver esta sección.
+                  </td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         )}
