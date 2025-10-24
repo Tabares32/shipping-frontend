@@ -46,6 +46,31 @@ const FedexShippingCaptureForm = () => {
     };
   };
 
+  const descontarMaterialesDelFinishedGood = async (finishedGoodName) => {
+    const finishedGoods = getStorage('finishedGoods') || [];
+    const materials = getStorage('materials') || [];
+
+    const fg = finishedGoods.find(fg => fg.name === finishedGoodName);
+    if (!fg) return;
+
+    const updatedMaterials = materials.map(m => ({ ...m }));
+
+    for (let i = 1; i <= 16; i++) {
+      const matId = fg[`material${i}`];
+      const qty = parseInt(fg[`cantidad${i}`], 10) || 0;
+
+      if (matId && qty > 0) {
+        const index = updatedMaterials.findIndex(m => m.id === matId);
+        if (index !== -1) {
+          updatedMaterials[index].stock = Math.max(0, (updatedMaterials[index].stock || 0) - qty);
+        }
+      }
+    }
+
+    setStorage('materials', updatedMaterials);
+    await syncToBackend();
+  };
+
   const persistEntries = async (entries) => {
     setStorage('fedexOrders', entries);
     await syncToBackend();
@@ -57,12 +82,14 @@ const FedexShippingCaptureForm = () => {
       setMessage('Faltan datos obligatorios para guardar la línea.');
       return;
     }
+
     const newEntry = createEntry();
     const updated = [...currentEntries, newEntry];
     await persistEntries(updated);
+    await descontarMaterialesDelFinishedGood(selectedFinishedGood);
     setMessage(`¡Línea ${newEntry.lineNumber} guardada con éxito para invoice ${selectedInvoice}!`);
 
-    // Limpieza parcial para nueva captura estándar
+    // Limpieza parcial: prepararse para otra captura completa
     setScanInvoice('');
     setSelectedInvoice('');
     setSearchTermFG('');
@@ -76,9 +103,11 @@ const FedexShippingCaptureForm = () => {
       setMessage('Faltan datos obligatorios para guardar la línea.');
       return;
     }
+
     const newEntry = createEntry();
     const updated = [...currentEntries, newEntry];
     await persistEntries(updated);
+    await descontarMaterialesDelFinishedGood(selectedFinishedGood);
     setMessage(`¡Línea ${newEntry.lineNumber} guardada! Puedes capturar otra del mismo invoice.`);
 
     // Limpieza parcial para captura rápida: mantiene observación, tracking y comentarios
@@ -89,12 +118,9 @@ const FedexShippingCaptureForm = () => {
   };
 
   const handleSaveOrder = async () => {
-    // Si hace falta alguna validación extra se puede agregar aquí antes de confirmar
+    // Confirmar persistencia y terminar orden (se puede extender con lógica extra)
     await persistEntries(currentEntries);
     setMessage('¡Orden completa guardada con éxito!');
-    // No limpiamos entradas para que el usuario vea el historial; si quieres limpiar, descomenta:
-    // setCurrentEntries([]);
-    // setStorage('fedexOrders', []);
   };
 
   const handleSelectFinishedGood = (fg) => {
