@@ -1,292 +1,340 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { getStorage, setStorage, syncToBackend } from '../utils/storage';
+import { mockFinishedGoods } from '../mock/finishedGoods'; // fallback
+import { mockObservations } from '../mock/observations'; // opcional fallback
 
+// Componente principal
 const FedexShippingCaptureForm = () => {
-  const [scanInvoice, setScanInvoice] = useState('');
+  // Finished goods / materials / observations / entradas
+  const [finishedGoodsList, setFinishedGoodsList] = useState([]);
+  const [availableMaterials, setAvailableMaterials] = useState([]);
+  const [observationsList, setObservationsList] = useState([]);
+
+  // Form state
   const [selectedInvoice, setSelectedInvoice] = useState('');
   const [searchTermFG, setSearchTermFG] = useState('');
-  const [selectedFinishedGood, setSelectedFinishedGood] = useState('');
+  const [selectedFinishedGood, setSelectedFinishedGood] = useState(null);
   const [selectedObservation, setSelectedObservation] = useState('');
-  const [trackingNumber, setTrackingNumber] = useState('');
-  const [comments, setComments] = useState('');
-  const [shippingDateForCut, setShippingDateForCut] = useState('');
-  const [currentEntries, setCurrentEntries] = useState([]);
+  const [shipmentDate, setShipmentDate] = useState('');
+  const [shippingDateForCut, setShippingDateForCut] = useState(false);
+  const [scanInvoice, setScanInvoice] = useState('');
+  const [lineNumber, setLineNumber] = useState(1);
   const [message, setMessage] = useState('');
+  const [entries, setEntries] = useState([]);
+  const [curtainEntries, setCurtainEntries] = useState([]);
 
-  const finishedGoodsList = getStorage('finishedGoods') || [];
-  const observationOptions = getStorage('observations') || [];
+  // refs para evitar dobles sync al montar
+  const mountedRef = useRef(false);
 
+  // Cargar datos iniciales desde storage
   useEffect(() => {
-    const stored = getStorage('fedexOrders') || [];
-    setCurrentEntries(stored);
+    const fgs = getStorage('customFinishedGoods') || mockFinishedGoods || [];
+    const mats = getStorage('materialsBOM') || getStorage('materials') || [];
+    const obs = getStorage('observations') || mockObservations || [];
+
+    setFinishedGoodsList(Array.isArray(fgs) ? fgs : []);
+    setAvailableMaterials(Array.isArray(mats) ? mats : []);
+    setObservationsList(Array.isArray(obs) ? obs : []);
+
+    const savedEntries = getStorage('entries') || [];
+    setEntries(Array.isArray(savedEntries) ? savedEntries : []);
+    setCurtainEntries(Array.isArray(savedEntries) ? savedEntries : []);
+
+    // set line number from existing entries length + 1
+    const startLine = Array.isArray(savedEntries) ? savedEntries.length + 1 : 1;
+    setLineNumber(startLine);
+
+    // avoid double-sync on first render
+    mountedRef.current = true;
   }, []);
 
-  const handleScanInvoice = (text) => {
-    setScanInvoice(text);
-    const match = text.match(/^([\w\-]+),/);
-    if (match) {
-      setSelectedInvoice(match[1]);
-    }
-    setSearchTermFG('');
-    setSelectedFinishedGood('');
+  // Filtrado dinámico: busca dentro de la propiedad finishedGood (case-insensitive)
+  const filteredFinishedGoods = finishedGoodsList.filter((fg) => {
+    if (!searchTermFG) return true;
+    const target = (fg.finishedGood || fg.name || '').toString().toLowerCase();
+    return target.includes(searchTermFG.toLowerCase());
+  });
+
+  // Mostrar mensajes temporales
+  const showMessage = (txt, timeout = 3000) => {
+    setMessage(txt);
+    if (timeout > 0) setTimeout(() => setMessage(''), timeout);
   };
 
+  // Crear estructura de entry base
   const createEntry = () => {
-    const lineCount = currentEntries.filter(e => e.invoice === selectedInvoice).length + 1;
     return {
-      id: Date.now(),
-      invoice: selectedInvoice,
-      finishedGood: selectedFinishedGood,
-      observation: selectedObservation,
-      trackingNumber,
-      comments,
-      shippingDate: shippingDateForCut,
-      lineNumber: lineCount,
-      captureTime: new Date().toLocaleTimeString(),
+      order: selectedInvoice || '',
+      lineNumber,
+      finishedGood: selectedFinishedGood ? (selectedFinishedGood.finishedGood || selectedFinishedGood.name) : '',
+      finishedGoodObject: selectedFinishedGood || null,
+      observation: selectedObservation || '',
+      trackingNumber: '',
+      shippingDate: shipmentDate || '',
+      captureTime: new Date().toISOString(),
     };
   };
 
-  const descontarMaterialesDelFinishedGood = async (finishedGoodName) => {
-    const finishedGoods = getStorage('finishedGoods') || [];
-    const materials = getStorage('materials') || [];
+  // Persistir entradas en storage y backend
+  const persistEntries = async (newEntries) => {
+    setStorage('entries', newEntries);
+    await syncToBackend();
+    await syncToBackend();
+    setEntries(newEntries);
+    setCurtainEntries(newEntries);
+  };
 
-    const fg = finishedGoods.find(fg => fg.name === finishedGoodName);
-    if (!fg) return;
-
-    const updatedMaterials = materials.map(m => ({ ...m }));
+  // Actualizar stock de materiales según BOM del finished good guardado
+  const updateMaterialsStockFromFG = async (fgObject) => {
+    if (!fgObject || !fgObject.bom) return;
+    const matsKeyCandidates = ['materialsBOM', 'materials'];
+    const storedMaterials = getStorage('materialsBOM') || getStorage('materials') || [];
+    const updatedMaterials = Array.isArray(storedMaterials) ? storedMaterials.map(m => ({ ...m })) : [];
 
     for (let i = 1; i <= 16; i++) {
-      const matId = fg[`material${i}`];
-      const qty = parseInt(fg[`cantidad${i}`], 10) || 0;
+      const matIdKey = `matId${i}`;
+      const qtyKey = `cantidad${i}`;
+      // support both shaped BOM (array) and indexed props
+      const bomEntry = Array.isArray(fgObject.bom) ? fgObject.bom.find(b => b.materialId === fgObject.bom[i - 1]?.materialId) : null;
+
+      const matId = (fgObject[matIdKey] || (bomEntry && bomEntry.materialId) || '').toString();
+      const qty = parseFloat(fgObject[qtyKey] || (bomEntry && bomEntry.quantity) || 0) || 0;
 
       if (matId && qty > 0) {
-        const index = updatedMaterials.findIndex(m => m.id === matId);
-        if (index !== -1) {
-          updatedMaterials[index].stock = Math.max(0, (updatedMaterials[index].stock || 0) - qty);
+        const idx = updatedMaterials.findIndex((m) => (m.materialId || m.id || m.ID) === matId);
+        if (idx >= 0) {
+          updatedMaterials[idx].stock = Math.max(0, (Number(updatedMaterials[idx].stock) || 0) - qty);
         }
       }
     }
 
-    setStorage('materials', updatedMaterials);
+    // Guardar cambios y sincronizar
+    setStorage('materialsBOM', updatedMaterials);
+    setStorage('materials', updatedMaterials); // mantener compatibilidad
     await syncToBackend();
-  };
-
-  const persistEntries = async (entries) => {
-    setStorage('fedexOrders', entries);
     await syncToBackend();
-    setCurrentEntries(entries);
+    setAvailableMaterials(updatedMaterials);
   };
 
-  const handleAddLine = async () => {
-    if (!selectedInvoice || !selectedFinishedGood || !shippingDateForCut) {
-      setMessage('Faltan datos obligatorios para guardar la línea.');
-      return;
-    }
-
-    const newEntry = createEntry();
-    const updated = [...currentEntries, newEntry];
-    await persistEntries(updated);
-    await descontarMaterialesDelFinishedGood(selectedFinishedGood);
-    setMessage(`¡Línea ${newEntry.lineNumber} guardada con éxito para invoice ${selectedInvoice}!`);
-
-    // Limpieza parcial: prepararse para otra captura completa
-    setScanInvoice('');
-    setSelectedInvoice('');
-    setSearchTermFG('');
-    setSelectedFinishedGood('');
-    setTrackingNumber('');
-    setComments('');
+  // Manejo de selección de finished good desde la lista filtrada
+  const handleSelectedFinishedGood = (fg) => {
+    setSelectedFinishedGood(fg);
+    setSearchTermFG(fg.finishedGood || fg.name || '');
   };
 
+  // Guardar una linea (Add Line)
   const handleAddLineAndContinue = async () => {
-    if (!selectedInvoice || !selectedFinishedGood || !shippingDateForCut) {
-      setMessage('Faltan datos obligatorios para guardar la línea.');
+    if (!selectedInvoice) {
+      showMessage('Selecciona o captura la invoice antes de agregar la línea.', 4000);
+      return;
+    }
+    if (!selectedFinishedGood) {
+      showMessage('Selecciona un Finished Good válido.', 4000);
       return;
     }
 
     const newEntry = createEntry();
-    const updated = [...currentEntries, newEntry];
-    await persistEntries(updated);
-    await descontarMaterialesDelFinishedGood(selectedFinishedGood);
-    setMessage(`¡Línea ${newEntry.lineNumber} guardada! Puedes capturar otra del mismo invoice.`);
+    const newEntries = [...entries, newEntry];
 
-    // Limpieza parcial para captura rápida: mantiene observación, tracking y comentarios
-    setScanInvoice('');
-    setSelectedInvoice('');
+    await persistEntries(newEntries);
+    await updateMaterialsStockFromFG(selectedFinishedGood);
+
+    // avanzar línea y limpiar teclado/selecciones parciales
+    setLineNumber((n) => n + 1);
+    setSelectedFinishedGood(null);
     setSearchTermFG('');
-    setSelectedFinishedGood('');
+    setSelectedObservation('');
+    setShipmentDate('');
+    showMessage(`Línea ${newEntry.lineNumber} guardada con éxito para invoice ${selectedInvoice}`, 3000);
   };
 
+  // Guardar orden completa (persistir, mensaje final)
   const handleSaveOrder = async () => {
-    // Confirmar persistencia y terminar orden (se puede extender con lógica extra)
-    await persistEntries(currentEntries);
-    setMessage('¡Orden completa guardada con éxito!');
+    if (!selectedInvoice) {
+      showMessage('Captura la invoice antes de guardar la orden.', 4000);
+      return;
+    }
+    // Aquí ya están las entradas en storage por persistEntries al agregar líneas
+    showMessage('Orden guardada correctamente.', 3000);
   };
 
-  const handleSelectFinishedGood = (fg) => {
-    setSelectedFinishedGood(fg.name);
-    setSearchTermFG(fg.name);
+  // Eliminar una entrada (por line)
+  const handleRemoveEntry = async (lineToRemove) => {
+    const updated = entries.filter((e) => e.lineNumber !== lineToRemove);
+    // reindexar líneas si se desea mantener secuencia
+    const reindexed = updated.map((e, idx) => ({ ...e, lineNumber: idx + 1 }));
+    await persistEntries(reindexed);
+    setLineNumber(reindexed.length + 1);
+    showMessage(`Línea ${lineToRemove} eliminada.`, 3000);
   };
 
-  const filteredFinishedGoods = finishedGoodsList.filter(fg =>
-    fg.name.toLowerCase().includes(searchTermFG.toLowerCase())
-  );
+  // Cuando se cambia invoice escaneada / capturada, intentar extraer número
+  const handleScanInvoice = (val) => {
+    setScanInvoice(val);
+    // ejemplo: extraer patrón numérico largo
+    const match = (val || '').match(/(\d{6,})/);
+    if (match) setSelectedInvoice(match[1]);
+  };
 
+  // Render
   return (
-    <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-6xl mx-auto">
-      <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">Captura de Envíos Fedex</h2>
+    <div className="w-full max-w-3xl mx-auto p-6 bg-white rounded-xl shadow-lg">
+      <h2 className="text-2xl font-bold mb-4 text-center">Captura de Envíos Fedex</h2>
 
-      {message && <p className="text-green-600 text-center mb-4">{message}</p>}
+      {message && <div className="mb-4 text-center text-green-700">{message}</div>}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-        <div>
-          <label className="block text-gray-700 text-sm font-semibold mb-2">Fecha de Envío para el Corte</label>
-          <input
-            type="date"
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg"
-            value={shippingDateForCut}
-            onChange={(e) => setShippingDateForCut(e.target.value)}
-          />
-        </div>
+      {/* Invoice (automático / escaneo) */}
+      <div className="mb-4">
+        <label className="block text-sm font-semibold mb-1">Invoice (Automático)</label>
+        <input
+          type="text"
+          readOnly
+          className="w-full px-3 py-2 border rounded bg-gray-100"
+          value={selectedInvoice}
+        />
+      </div>
 
-        <div>
-          <label className="block text-gray-700 text-sm font-semibold mb-2">Scan Invoice</label>
-          <input
-            type="text"
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg"
-            value={scanInvoice}
-            onChange={(e) => handleScanInvoice(e.target.value)}
-            placeholder="Ej. 693284U,S-3263TM (1 of 1),Two Tone..."
-          />
-        </div>
+      {/* Scan invoice input */}
+      <div className="mb-4">
+        <label className="block text-sm font-semibold mb-1">Scan Invoice / texto</label>
+        <input
+          type="text"
+          value={scanInvoice}
+          onChange={(e) => handleScanInvoice(e.target.value)}
+          placeholder="Ej. 12345678 5.3263TM (1 of 1)"
+          className="w-full px-3 py-2 border rounded"
+        />
+      </div>
 
-        <div>
-          <label className="block text-gray-700 text-sm font-semibold mb-2">Invoice (Automático)</label>
-          <input
-            type="text"
-            readOnly
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100"
-            value={selectedInvoice}
-          />
-        </div>
+      {/* Fecha de envío para el corte */}
+      <div className="mb-4">
+        <label className="block text-sm font-semibold mb-1">Fecha de Envío para el Corte</label>
+        <input
+          type="date"
+          className="w-full px-3 py-2 border rounded"
+          value={shipmentDate}
+          onChange={(e) => setShipmentDate(e.target.value)}
+          onClick={() => setShippingDateForCut(true)}
+        />
+      </div>
 
-        <div>
-          <label className="block text-gray-700 text-sm font-semibold mb-2">Buscar Finished Good</label>
-          <input
-            type="text"
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg"
-            value={searchTermFG}
-            onChange={(e) => setSearchTermFG(e.target.value)}
-            placeholder="Ej. SDB o parte completa"
-            autoComplete="off"
-          />
-          {searchTermFG && filteredFinishedGoods.length > 0 && (
-            <ul className="bg-white border rounded-lg mt-2 max-h-44 overflow-auto shadow z-20 relative">
-              {filteredFinishedGoods.map((fg) => (
-                <li
-                  key={fg.id}
-                  onClick={() => handleSelectFinishedGood(fg)}
-                  className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
-                >
-                  {fg.name}
-                </li>
-              ))}
-            </ul>
+      {/* Buscar Finished Good */}
+      <div className="mb-4">
+        <label className="block text-sm font-semibold mb-1">Buscar Finished Good</label>
+        <input
+          type="text"
+          autoComplete="off"
+          placeholder="Ej. escribe ATA para filtrar"
+          value={searchTermFG}
+          onChange={(e) => setSearchTermFG(e.target.value)}
+          className="w-full px-3 py-2 border rounded"
+        />
+
+        <div className="max-h-48 overflow-y-auto mt-2 border rounded">
+          {filteredFinishedGoods.length > 0 ? (
+            filteredFinishedGoods.map((fg, idx) => (
+              <div
+                key={fg.finishedGood ? fg.finishedGood + idx : idx}
+                onClick={() => handleSelectedFinishedGood(fg)}
+                className="px-3 py-2 cursor-pointer hover:bg-gray-100 border-b"
+              >
+                {fg.finishedGood || fg.name}
+              </div>
+            ))
+          ) : (
+            <div className="px-3 py-2 text-sm text-gray-500">No se encontraron Finished Goods</div>
           )}
-        </div>
-
-        <div>
-          <label className="block text-gray-700 text-sm font-semibold mb-2">Observación</label>
-          <select
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg"
-            value={selectedObservation}
-            onChange={(e) => setSelectedObservation(e.target.value)}
-          >
-            <option value="">Seleccione una opción</option>
-            {observationOptions.map((obs) => (
-              <option key={obs.id} value={obs.text}>{obs.text}</option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-gray-700 text-sm font-semibold mb-2">Tracking Number</label>
-          <input
-            type="text"
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg"
-            value={trackingNumber}
-            onChange={(e) => setTrackingNumber(e.target.value)}
-          />
-        </div>
-
-        <div>
-          <label className="block text-gray-700 text-sm font-semibold mb-2">Comentarios Adicionales</label>
-          <input
-            type="text"
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg"
-            value={comments}
-            onChange={(e) => setComments(e.target.value)}
-          />
         </div>
       </div>
 
-      <div className="flex justify-center gap-4 mb-6">
-        <button
-          onClick={handleAddLine}
-          className="bg-black text-white px-6 py-2 rounded-lg hover:bg-gray-800 transition"
+      {/* Observación */}
+      <div className="mb-4">
+        <label className="block text-sm font-semibold mb-1">Observación</label>
+        <select
+          value={selectedObservation}
+          onChange={(e) => setSelectedObservation(e.target.value)}
+          className="w-full px-3 py-2 border rounded"
         >
-          Agregar Línea
-        </button>
+          <option value="">Seleccione una opción</option>
+          {observationsList.map((obs, idx) => {
+            // soporta both objetos {id, text} y strings
+            const val = obs && typeof obs === 'object' ? (obs.text || obs.value || '') : obs;
+            const key = obs && typeof obs === 'object' ? (obs.id || idx) : idx;
+            return (
+              <option key={key} value={val}>
+                {val}
+              </option>
+            );
+          })}
+        </select>
+      </div>
 
+      {/* Comentarios adicionales */}
+      <div className="mb-4">
+        <label className="block text-sm font-semibold mb-1">Comentarios Adicionales</label>
+        <input
+          type="text"
+          className="w-full px-3 py-2 border rounded"
+          onChange={(e) => {}}
+          placeholder="Comentarios opcionales"
+        />
+      </div>
+
+      {/* Botones principales */}
+      <div className="flex gap-3 mb-6">
         <button
           onClick={handleAddLineAndContinue}
-          className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition"
+          className="flex-1 bg-black text-white py-2 rounded hover:opacity-90"
         >
-          Agregar Línea +1
+          Añadir Linea
         </button>
-
         <button
           onClick={handleSaveOrder}
-          className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition"
+          className="flex-1 bg-green-600 text-white py-2 rounded hover:opacity-90"
         >
           Guardar Orden
         </button>
       </div>
 
-      {currentEntries.length > 0 ? (
-        <div className="overflow-x-auto">
-          <table className="min-w-full bg-white border border-gray-200 rounded-lg shadow-sm">
-            <thead className="bg-gray-100">
-              <tr>
-                <th className="py-3 px-4 text-left">Invoice</th>
-                <th className="py-3 px-4 text-left">Finished Good</th>
-                <th className="py-3 px-4 text-left">Observación</th>
-                <th className="py-3 px-4 text-left">Tracking</th>
-                <th className="py-3 px-4 text-left">Comentarios</th>
-                <th className="py-3 px-4 text-left">Fecha Corte</th>
-                <th className="py-3 px-4 text-left">Línea</th>
-                <th className="py-3 px-4 text-left">Hora</th>
+      {/* Tabla de líneas capturadas */}
+      <div>
+        <h3 className="text-lg font-semibold mb-2">Líneas capturadas</h3>
+        {curtainEntries.length > 0 ? (
+          <table className="w-full table-auto border-collapse">
+            <thead>
+              <tr className="text-left">
+                <th className="py-2 px-3 border-b">Orden</th>
+                <th className="py-2 px-3 border-b">Línea</th>
+                <th className="py-2 px-3 border-b">Finished Good</th>
+                <th className="py-2 px-3 border-b">Observación</th>
+                <th className="py-2 px-3 border-b">Track</th>
+                <th className="py-2 px-3 border-b">Acciones</th>
               </tr>
             </thead>
             <tbody>
-              {currentEntries.map((entry) => (
-                <tr key={entry.id} className="border-b hover:bg-gray-50">
-                  <td className="py-3 px-4">{entry.invoice}</td>
-                  <td className="py-3 px-4">{entry.finishedGood}</td>
-                  <td className="py-3 px-4">{entry.observation}</td>
-                  <td className="py-3 px-4">{entry.trackingNumber}</td>
-                  <td className="py-3 px-4">{entry.comments}</td>
-                  <td className="py-3 px-4">{entry.shippingDate}</td>
-                  <td className="py-3 px-4">Línea {entry.lineNumber}</td>
-                  <td className="py-3 px-4">{entry.captureTime}</td>
+              {curtainEntries.map((entry) => (
+                <tr key={entry.lineNumber}>
+                  <td className="py-2 px-3 border-b">{entry.order}</td>
+                  <td className="py-2 px-3 border-b">{entry.lineNumber}</td>
+                  <td className="py-2 px-3 border-b">{entry.finishedGood}</td>
+                  <td className="py-2 px-3 border-b">{entry.observation}</td>
+                  <td className="py-2 px-3 border-b">{entry.trackingNumber}</td>
+                  <td className="py-2 px-3 border-b">
+                    <button
+                      onClick={() => handleRemoveEntry(entry.lineNumber)}
+                      className="text-sm px-2 py-1 bg-red-500 text-white rounded"
+                    >
+                      Eliminar
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
-      ) : (
-        <p className="text-center text-gray-500 mt-4">No hay líneas capturadas aún.</p>
-      )}
+        ) : (
+          <div className="text-center text-gray-500 py-6">No hay líneas capturadas aún.</div>
+        )}
+      </div>
     </div>
   );
 };
