@@ -7,7 +7,7 @@ import PublicDashboard from "./components/PublicDashboard";
 import {
   getStorage,
   setStorage,
-  syncStorageFromBackend,
+  syncFromBackend, // ✅ nombre corregido
   initStorageSync, // ✅ nombre corregido
 } from "./utils/storage";
 
@@ -27,7 +27,7 @@ const App = () => {
     (async () => {
       try {
         setIsSyncing(true);
-        await initStorageSync(token); // ✅ nombre corregido
+        await initStorageSync(token);
         console.log("✅ Sincronización inicial completada");
       } catch (error) {
         console.warn("⚠️ Error en sincronización inicial:", error);
@@ -91,7 +91,7 @@ const App = () => {
 
     try {
       setIsSyncing(true);
-      await syncStorageFromBackend();
+      await syncFromBackend(); // ✅ nombre corregido
       console.log("✅ Datos sincronizados tras inicio de sesión.");
     } catch (e) {
       console.warn("No se pudo sincronizar tras login:", e);
