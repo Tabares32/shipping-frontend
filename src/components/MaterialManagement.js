@@ -11,7 +11,7 @@ const MaterialManagement = () => {
   const [editingMaterial, setEditingMaterial] = useState(null);
 
   useEffect(() => {
-    const storedMaterials = getStorage('materials') || mockMaterials;
+    const storedMaterials = getStorage('materialsBOM') || mockMaterials;
     setMaterials(storedMaterials);
   }, []);
 
@@ -27,7 +27,7 @@ const MaterialManagement = () => {
 
     const newMaterial = { materialId: newMaterialId, name: newMaterialName, stock: newMaterialStock };
     const updatedMaterials = [...materials, newMaterial];
-    setStorage('materials', updatedMaterials);
+    setStorage('materialsBOM', updatedMaterials);
     setMaterials(updatedMaterials);
     setMessage('¡Material agregado con éxito!');
     setNewMaterialName('');
@@ -48,7 +48,7 @@ const MaterialManagement = () => {
     const updatedMaterials = materials.map(material =>
       material.materialId === editingMaterial.materialId ? editingMaterial : material
     );
-    setStorage('materials', updatedMaterials);
+    setStorage('materialsBOM', updatedMaterials);
     setMaterials(updatedMaterials);
     setMessage('¡Material actualizado con éxito!');
     setEditingMaterial(null);
@@ -62,7 +62,7 @@ const MaterialManagement = () => {
   const handleRemoveMaterial = (materialId) => {
     if (window.confirm('¿Estás seguro de que quieres eliminar este material?')) {
       const updatedMaterials = materials.filter(material => material.materialId !== materialId);
-      setStorage('materials', updatedMaterials);
+      setStorage('materialsBOM', updatedMaterials);
       setMaterials(updatedMaterials);
       setMessage('¡Material eliminado con éxito!');
     }
@@ -85,7 +85,7 @@ const MaterialManagement = () => {
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black transition"
               value={editingMaterial ? editingMaterial.materialId : newMaterialId}
               onChange={(e) => editingMaterial ? setEditingMaterial({ ...editingMaterial, materialId: e.target.value }) : setNewMaterialId(e.target.value)}
-              disabled={!!editingMaterial} // Disable ID edit for existing materials
+              disabled={!!editingMaterial}
             />
           </div>
           <div>
