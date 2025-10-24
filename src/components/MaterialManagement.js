@@ -2,24 +2,16 @@ import React, { useState, useEffect } from 'react';
 
 // API helpers
 const fetchMaterials = async () => {
-  try {
-    const res = await fetch('/api/materials');
-    return res.ok ? await res.json() : [];
-  } catch {
-    return [];
-  }
+  const res = await fetch('/api/materials_bom');
+  return res.ok ? await res.json() : [];
 };
 
 const saveMaterials = async (data) => {
-  try {
-    await fetch('/api/materials', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-  } catch {
-    console.error('Error al guardar materiales');
-  }
+  await fetch('/api/materials_bom', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
 };
 
 const MaterialManagement = () => {
