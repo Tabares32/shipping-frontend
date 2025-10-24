@@ -1,6 +1,41 @@
 import React, { useState, useEffect } from 'react';
-import { getStorage, setStorage } from '../utils/storage';
-import { mockFinishedGoods } from '../mock/finishedGoods';
+
+/**
+ * FinishedGoodManagement (synchronized with backend JSON files)
+ *
+ * Endpoints expected on backend:
+ * GET  /api/customFinishedGoods    -> returns JSON array of finished goods
+ * POST /api/customFinishedGoods    -> accepts JSON array to overwrite saved finished goods
+ * GET  /api/materials              -> returns JSON array of materials
+ * POST /api/materials              -> accepts JSON array to overwrite saved materials (optional)
+ *
+ * Ajusta las rutas si tu API usa otras.
+ */
+
+/* API helpers */
+const fetchJson = async (url) => {
+  try {
+    const r = await fetch(url);
+    if (!r.ok) return [];
+    const data = await r.json();
+    return Array.isArray(data) ? data : [];
+  } catch {
+    return [];
+  }
+};
+
+const postJson = async (url, payload) => {
+  try {
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    return r.ok;
+  } catch {
+    return false;
+  }
+};
 
 const FinishedGoodManagement = () => {
   const [finishedGoods, setFinishedGoods] = useState([]);
@@ -11,84 +46,93 @@ const FinishedGoodManagement = () => {
   const [message, setMessage] = useState('');
   const [availableMaterials, setAvailableMaterials] = useState([]);
 
-  // Cargar materiales e inventario almacenado
   useEffect(() => {
-    const storedFinishedGoods = getStorage('customFinishedGoods') || mockFinishedGoods;
-    setFinishedGoods(storedFinishedGoods);
-    setAvailableMaterials(getStorage('materials') || []);
+    const load = async () => {
+      const fg = await fetchJson('/api/customFinishedGoods');
+      const mats = await fetchJson('/api/materials');
+      setFinishedGoods(fg);
+      setAvailableMaterials(mats);
+    };
+    load();
+    initializeBOMSlots();
   }, []);
 
-  // Inicializa 16 slots vacíos para el BOM
   const initializeBOMSlots = () => {
     const slots = Array.from({ length: 16 }, () => ({
       materialId: '',
       name: '',
-      quantity: 0
+      quantity: 0,
     }));
     setNewBOM(slots);
   };
 
-  useEffect(() => {
-    initializeBOMSlots();
-  }, []);
-
-  // Actualiza un material dentro del BOM
-  const handleMaterialChangeInBOM = (index, field, value) => {
-    const updatedBOM = [...newBOM];
-    updatedBOM[index][field] = value;
-
-    if (field === 'materialId' && value) {
-      const material = availableMaterials.find(mat => mat.materialId === value);
-      if (material) {
-        updatedBOM[index].name = material.name;
-      } else {
-        updatedBOM[index].name = '';
-      }
-    }
-    setNewBOM(updatedBOM);
+  const showMessage = (txt, timeout = 3000) => {
+    setMessage(txt);
+    if (timeout > 0) setTimeout(() => setMessage(''), timeout);
   };
 
-  // Agrega un nuevo Finished Good
-  const handleAddFinishedGood = () => {
-    const filteredBOM = newBOM.filter(item => item.materialId && item.quantity > 0);
+  const handleMaterialChangeInBOM = (index, field, value) => {
+    const updated = newBOM.slice();
+    updated[index] = { ...updated[index], [field]: value };
 
-    if (newFinishedGoodName && newType && newVehicleType && filteredBOM.length > 0) {
-      const updatedFinishedGoods = [
-        ...finishedGoods,
-        {
-          finishedGood: newFinishedGoodName,
-          type: newType,
-          vehicleType: newVehicleType,
-          bom: filteredBOM
-        }
-      ];
+    if (field === 'materialId' && value) {
+      const material =
+        availableMaterials.find((m) => m.materialId === value) ||
+        availableMaterials.find((m) => m.id === value);
+      updated[index].name = material ? (material.name || material.nombre || '') : '';
+    }
 
-      setStorage('customFinishedGoods', updatedFinishedGoods);
-      setFinishedGoods(updatedFinishedGoods);
+    setNewBOM(updated);
+  };
+
+  const saveFinishedGoods = async (list) => {
+    const ok = await postJson('/api/customFinishedGoods', list);
+    if (!ok) showMessage('Error sincronizando Finished Goods con el servidor', 4000);
+    return ok;
+  };
+
+  const handleAddFinishedGood = async () => {
+    const filteredBOM = newBOM.filter((it) => it.materialId && Number(it.quantity) > 0);
+
+    if (!newFinishedGoodName || !newType || !newVehicleType || filteredBOM.length === 0) {
+      showMessage('⚠️ Completa todos los campos y agrega al menos un material válido al BOM.', 4000);
+      return;
+    }
+
+    const newFG = {
+      finishedGood: newFinishedGoodName,
+      type: newType,
+      vehicleType: newVehicleType,
+      bom: filteredBOM.map((b) => ({ materialId: b.materialId, quantity: Number(b.quantity) })),
+    };
+
+    const updated = [...finishedGoods, newFG];
+    const ok = await saveFinishedGoods(updated);
+    if (ok) {
+      setFinishedGoods(updated);
       setNewFinishedGoodName('');
       setNewType('');
       setNewVehicleType('');
       initializeBOMSlots();
-      setMessage('✅ ¡Finished Good agregado con éxito!');
-    } else {
-      setMessage('⚠️ Completa todos los campos y agrega al menos un material válido al BOM.');
+      showMessage('✅ ¡Finished Good agregado con éxito!');
     }
   };
 
-  // Elimina un Finished Good
-  const handleRemoveFinishedGood = (fgToRemove) => {
-    const updatedFinishedGoods = finishedGoods.filter(item => item.finishedGood !== fgToRemove);
-    setStorage('customFinishedGoods', updatedFinishedGoods);
-    setFinishedGoods(updatedFinishedGoods);
-    setMessage(`🗑️ Finished Good "${fgToRemove}" eliminado.`);
+  const handleRemoveFinishedGood = async (fgToRemove) => {
+    const updated = finishedGoods.filter((f) => f.finishedGood !== fgToRemove);
+    const ok = await saveFinishedGoods(updated);
+    if (ok) {
+      setFinishedGoods(updated);
+      showMessage(`🗑️ Finished Good "${fgToRemove}" eliminado.`);
+    }
   };
 
   return (
     <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-4xl mx-auto">
       <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">Gestión de Finished Goods</h2>
+
       {message && <p className="text-green-600 text-center mb-4">{message}</p>}
 
-      {/* Formulario de creación */}
       <div className="mb-8 p-6 border border-gray-200 rounded-lg bg-gray-50">
         <h3 className="text-xl font-semibold text-gray-700 mb-4">Agregar Nuevo Finished Good</h3>
 
@@ -97,7 +141,7 @@ const FinishedGoodManagement = () => {
             <label className="block text-gray-700 text-sm font-semibold mb-2">Nombre Finished Good</label>
             <input
               type="text"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg"
               value={newFinishedGoodName}
               onChange={(e) => setNewFinishedGoodName(e.target.value)}
             />
@@ -106,7 +150,7 @@ const FinishedGoodManagement = () => {
           <div>
             <label className="block text-gray-700 text-sm font-semibold mb-2">Tipo (Front/Rear)</label>
             <select
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg"
               value={newType}
               onChange={(e) => setNewType(e.target.value)}
             >
@@ -119,7 +163,7 @@ const FinishedGoodManagement = () => {
           <div className="md:col-span-2">
             <label className="block text-gray-700 text-sm font-semibold mb-2">Tipo de Vehículo</label>
             <select
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg"
               value={newVehicleType}
               onChange={(e) => setNewVehicleType(e.target.value)}
             >
@@ -131,71 +175,65 @@ const FinishedGoodManagement = () => {
           </div>
         </div>
 
-        {/* Bill of Materials */}
         <h4 className="text-lg font-semibold text-gray-700 mb-3">Bill of Materials (BOM) - 16 Materiales</h4>
-        {newBOM.map((item, index) => (
-          <div key={index} className="grid grid-cols-3 gap-4 mb-2">
+        {newBOM.map((item, i) => (
+          <div key={i} className="grid grid-cols-3 gap-4 mb-2">
             <div className="col-span-2">
               <select
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg"
                 value={item.materialId}
-                onChange={(e) => handleMaterialChangeInBOM(index, 'materialId', e.target.value)}
+                onChange={(e) => handleMaterialChangeInBOM(i, 'materialId', e.target.value)}
               >
-                <option value="">Material {index + 1}</option>
-                {availableMaterials.map(material => (
-                  <option key={material.materialId} value={material.materialId}>
-                    {material.materialId} - {material.name} (Stock: {material.stock})
+                <option value="">Material {i + 1}</option>
+                {availableMaterials.map((m) => (
+                  <option key={m.materialId || m.id} value={m.materialId || m.id}>
+                    {(m.materialId || m.id)} - {m.name || m.nombre} (Stock: {m.stock})
                   </option>
                 ))}
               </select>
             </div>
+
             <div>
               <input
                 type="number"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black"
-                value={item.quantity}
-                onChange={(e) => handleMaterialChangeInBOM(index, 'quantity', parseInt(e.target.value) || 0)}
                 min="0"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                value={item.quantity}
+                onChange={(e) => handleMaterialChangeInBOM(i, 'quantity', parseInt(e.target.value, 10) || 0)}
               />
             </div>
           </div>
         ))}
 
-        <button
-          onClick={handleAddFinishedGood}
-          className="w-full bg-black text-white py-2 rounded-lg hover:bg-gray-800 transition mt-4 font-semibold"
-        >
+        <button onClick={handleAddFinishedGood} className="w-full bg-black text-white py-2 rounded-lg hover:bg-gray-800 transition mt-4 font-semibold">
           Agregar Finished Good
         </button>
       </div>
 
-      {/* Tabla de Finished Goods */}
       <h3 className="text-xl font-semibold text-gray-700 mb-4">Finished Goods Existentes</h3>
       <div className="overflow-x-auto">
         <table className="min-w-full bg-white border border-gray-200 rounded-lg shadow-sm">
           <thead className="bg-gray-100">
             <tr>
-              <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 border-b">Finished Good</th>
-              <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 border-b">Tipo</th>
-              <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 border-b">Vehículo</th>
-              <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 border-b">BOM</th>
-              <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 border-b">Acciones</th>
+              <th className="py-3 px-4 text-left">Finished Good</th>
+              <th className="py-3 px-4 text-left">Tipo</th>
+              <th className="py-3 px-4 text-left">Vehículo</th>
+              <th className="py-3 px-4 text-left">BOM</th>
+              <th className="py-3 px-4 text-left">Acciones</th>
             </tr>
           </thead>
           <tbody>
             {finishedGoods.length > 0 ? (
-              finishedGoods.map((item, index) => (
-                <tr key={index} className="border-b hover:bg-gray-50">
-                  <td className="py-3 px-4 text-gray-800">{item.finishedGood}</td>
-                  <td className="py-3 px-4 text-gray-800">{item.type}</td>
-                  <td className="py-3 px-4 text-gray-800">{item.vehicleType}</td>
-                  <td className="py-3 px-4 text-gray-800 text-xs">
+              finishedGoods.map((item, idx) => (
+                <tr key={idx} className="border-b hover:bg-gray-50">
+                  <td className="py-3 px-4">{item.finishedGood}</td>
+                  <td className="py-3 px-4">{item.type}</td>
+                  <td className="py-3 px-4">{item.vehicleType}</td>
+                  <td className="py-3 px-4 text-sm">
                     {item.bom && item.bom.length > 0 ? (
                       <ul className="list-disc list-inside">
-                        {item.bom.map((mat, idx) => (
-                          <li key={idx}>
-                            <strong>{mat.materialId}</strong> (x{mat.quantity})
-                          </li>
+                        {item.bom.map((mat, j) => (
+                          <li key={j}><strong>{mat.materialId}</strong> (x{mat.quantity})</li>
                         ))}
                       </ul>
                     ) : (
@@ -203,10 +241,7 @@ const FinishedGoodManagement = () => {
                     )}
                   </td>
                   <td className="py-3 px-4">
-                    <button
-                      onClick={() => handleRemoveFinishedGood(item.finishedGood)}
-                      className="bg-red-500 text-white px-3 py-1 rounded-md hover:bg-red-600 text-sm"
-                    >
+                    <button onClick={() => handleRemoveFinishedGood(item.finishedGood)} className="bg-red-500 text-white px-3 py-1 rounded-md hover:bg-red-600 text-sm">
                       Eliminar
                     </button>
                   </td>
@@ -214,9 +249,7 @@ const FinishedGoodManagement = () => {
               ))
             ) : (
               <tr>
-                <td colSpan="5" className="py-4 text-center text-gray-500">
-                  No hay Finished Goods registrados.
-                </td>
+                <td colSpan="5" className="py-4 text-center text-gray-500">No hay Finished Goods registrados.</td>
               </tr>
             )}
           </tbody>
