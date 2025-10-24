@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { getStorage, setStorage } from '../utils/storage';
-import { mockMaterials } from '../mock/materials'; // Import mock materials
+import { getStorage, setStorage, syncToBackend } from '../utils/storage';
+import { mockMaterials } from '../mock/materials';
 
 const MaterialManagement = () => {
   const [materials, setMaterials] = useState([]);
@@ -15,7 +15,7 @@ const MaterialManagement = () => {
     setMaterials(storedMaterials);
   }, []);
 
-  const handleAddMaterial = () => {
+  const handleAddMaterial = async () => {
     if (!newMaterialName || !newMaterialId || newMaterialStock < 0) {
       setMessage('¡Todos los campos son obligatorios y el stock debe ser >= 0!');
       return;
@@ -29,6 +29,7 @@ const MaterialManagement = () => {
     const updatedMaterials = [...materials, newMaterial];
     setStorage('materialsBOM', updatedMaterials);
     setMaterials(updatedMaterials);
+    await syncToBackend();
     setMessage('¡Material agregado con éxito!');
     setNewMaterialName('');
     setNewMaterialId('');
@@ -40,16 +41,18 @@ const MaterialManagement = () => {
     setMessage('');
   };
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (!editingMaterial.name || !editingMaterial.materialId || editingMaterial.stock < 0) {
       setMessage('¡Todos los campos son obligatorios y el stock debe ser >= 0!');
       return;
     }
+
     const updatedMaterials = materials.map(material =>
       material.materialId === editingMaterial.materialId ? editingMaterial : material
     );
     setStorage('materialsBOM', updatedMaterials);
     setMaterials(updatedMaterials);
+    await syncToBackend();
     setMessage('¡Material actualizado con éxito!');
     setEditingMaterial(null);
   };
@@ -59,11 +62,12 @@ const MaterialManagement = () => {
     setMessage('');
   };
 
-  const handleRemoveMaterial = (materialId) => {
+  const handleRemoveMaterial = async (materialId) => {
     if (window.confirm('¿Estás seguro de que quieres eliminar este material?')) {
       const updatedMaterials = materials.filter(material => material.materialId !== materialId);
       setStorage('materialsBOM', updatedMaterials);
       setMaterials(updatedMaterials);
+      await syncToBackend();
       setMessage('¡Material eliminado con éxito!');
     }
   };
@@ -84,7 +88,11 @@ const MaterialManagement = () => {
               type="text"
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black transition"
               value={editingMaterial ? editingMaterial.materialId : newMaterialId}
-              onChange={(e) => editingMaterial ? setEditingMaterial({ ...editingMaterial, materialId: e.target.value }) : setNewMaterialId(e.target.value)}
+              onChange={(e) =>
+                editingMaterial
+                  ? setEditingMaterial({ ...editingMaterial, materialId: e.target.value })
+                  : setNewMaterialId(e.target.value)
+              }
               disabled={!!editingMaterial}
             />
           </div>
@@ -94,7 +102,11 @@ const MaterialManagement = () => {
               type="text"
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black transition"
               value={editingMaterial ? editingMaterial.name : newMaterialName}
-              onChange={(e) => editingMaterial ? setEditingMaterial({ ...editingMaterial, name: e.target.value }) : setNewMaterialName(e.target.value)}
+              onChange={(e) =>
+                editingMaterial
+                  ? setEditingMaterial({ ...editingMaterial, name: e.target.value })
+                  : setNewMaterialName(e.target.value)
+              }
             />
           </div>
           <div>
@@ -103,7 +115,11 @@ const MaterialManagement = () => {
               type="number"
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black transition"
               value={editingMaterial ? editingMaterial.stock : newMaterialStock}
-              onChange={(e) => editingMaterial ? setEditingMaterial({ ...editingMaterial, stock: parseInt(e.target.value) || 0 }) : setNewMaterialStock(parseInt(e.target.value) || 0)}
+              onChange={(e) =>
+                editingMaterial
+                  ? setEditingMaterial({ ...editingMaterial, stock: parseInt(e.target.value) || 0 })
+                  : setNewMaterialStock(parseInt(e.target.value) || 0)
+              }
               min="0"
             />
           </div>
