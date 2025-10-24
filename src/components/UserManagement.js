@@ -5,6 +5,8 @@ const UserManagement = () => {
   const [users, setUsers] = useState([]);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [role, setRole] = useState("user");
+  const [editingId, setEditingId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -13,10 +15,9 @@ const UserManagement = () => {
     process.env.REACT_APP_BACKEND_URL ||
     "https://shipping-backend-kgm5.onrender.com";
 
-  const token = localStorage.getItem("authToken"); // ✅ corregido
+  const token = localStorage.getItem("authToken");
   const currentUser = JSON.parse(localStorage.getItem("currentUser") || "{}");
 
-  // 🔹 Cargar lista de usuarios
   const fetchUsers = async () => {
     if (!token) return;
     setLoading(true);
@@ -26,15 +27,12 @@ const UserManagement = () => {
           Authorization: `Bearer ${token}`,
         },
       });
-
       const data = await res.json();
-
       if (!res.ok || !Array.isArray(data)) {
         setError(data.detail || "No tienes permisos para ver usuarios.");
         setUsers([]);
         return;
       }
-
       setUsers(data);
     } catch (err) {
       console.error("Error cargando usuarios:", err);
@@ -48,8 +46,7 @@ const UserManagement = () => {
     fetchUsers();
   }, []);
 
-  // 🔹 Crear nuevo usuario
-  const handleCreateUser = async () => {
+  const handleCreateOrUpdateUser = async () => {
     setError("");
     setSuccess("");
 
@@ -58,31 +55,51 @@ const UserManagement = () => {
       return;
     }
 
+    const payload = { username, password, role };
+
     try {
-      const res = await fetch(`${BACKEND}/api/users`, {
-        method: "POST",
+      const url = editingId
+        ? `${BACKEND}/api/users/${editingId}`
+        : `${BACKEND}/api/users`;
+      const method = editingId ? "PUT" : "POST";
+
+      const res = await fetch(url, {
+        method,
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify(payload),
       });
 
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        setError(data.detail || "No se pudo crear usuario en el backend");
+        setError(data.detail || "No se pudo guardar el usuario");
         return;
       }
 
-      setSuccess(`Usuario "${username}" creado correctamente ✅`);
+      setSuccess(
+        editingId
+          ? `Usuario actualizado correctamente ✅`
+          : `Usuario "${username}" creado correctamente ✅`
+      );
       setUsername("");
       setPassword("");
+      setRole("user");
+      setEditingId(null);
       fetchUsers();
     } catch (err) {
-      console.error("Error creando usuario:", err);
+      console.error("Error guardando usuario:", err);
       setError("Error de conexión con el servidor");
     }
+  };
+
+  const startEdit = (user) => {
+    setUsername(user.username);
+    setPassword("");
+    setRole(user.role);
+    setEditingId(user.id);
   };
 
   return (
@@ -94,9 +111,11 @@ const UserManagement = () => {
       {error && <p className="text-red-500 mb-4">{error}</p>}
       {success && <p className="text-green-600 mb-4">{success}</p>}
 
-      {/* Formulario de creación */}
+      {/* Formulario */}
       <div className="mb-6 bg-gray-50 p-6 rounded-xl shadow-md">
-        <h3 className="text-xl font-semibold mb-3">Agregar usuario</h3>
+        <h3 className="text-xl font-semibold mb-3">
+          {editingId ? "Editar usuario" : "Agregar usuario"}
+        </h3>
         <div className="flex flex-col sm:flex-row gap-3">
           <input
             type="text"
@@ -112,8 +131,16 @@ const UserManagement = () => {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
+          <select
+            className="flex-1 border border-gray-300 rounded-lg px-4 py-2"
+            value={role}
+            onChange={(e) => setRole(e.target.value)}
+          >
+            <option value="user">Usuario</option>
+            <option value="admin">Administrador</option>
+          </select>
           <button
-            onClick={handleCreateUser}
+            onClick={handleCreateOrUpdateUser}
             disabled={loading}
             className={`px-6 py-2 rounded-lg text-white font-semibold transition-all ${
               loading
@@ -121,12 +148,12 @@ const UserManagement = () => {
                 : "bg-black hover:bg-gray-800"
             }`}
           >
-            {loading ? "Creando..." : "Agregar"}
+            {loading ? "Guardando..." : editingId ? "Actualizar" : "Agregar"}
           </button>
         </div>
       </div>
 
-      {/* Lista de usuarios */}
+      {/* Lista */}
       <div className="bg-white rounded-xl shadow-lg p-6">
         <h3 className="text-lg font-semibold mb-3 text-gray-700">
           Usuarios registrados
@@ -140,6 +167,7 @@ const UserManagement = () => {
                 <th className="p-3">ID</th>
                 <th className="p-3">Usuario</th>
                 <th className="p-3">Rol</th>
+                <th className="p-3">Acciones</th>
               </tr>
             </thead>
             <tbody>
@@ -149,11 +177,19 @@ const UserManagement = () => {
                     <td className="p-3">{u.id}</td>
                     <td className="p-3">{u.username}</td>
                     <td className="p-3 capitalize">{u.role}</td>
+                    <td className="p-3">
+                      <button
+                        onClick={() => startEdit(u)}
+                        className="text-blue-600 hover:underline"
+                      >
+                        Editar
+                      </button>
+                    </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan="3" className="text-red-500 p-3">
+                  <td colSpan="4" className="text-red-500 p-3">
                     No tienes permisos para ver esta sección.
                   </td>
                 </tr>
