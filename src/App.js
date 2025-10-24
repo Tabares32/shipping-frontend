@@ -6,10 +6,9 @@ import DashboardSidebar from "./components/DashboardSidebar";
 import PublicDashboard from "./components/PublicDashboard";
 import UserManagement from "./components/UserManagement";
 import {
-  getStorage,
-  setStorage,
-  syncFromBackend,
   initStorageSync,
+  syncFromBackend,
+  setStorage,
 } from "./utils/storage";
 
 const App = () => {
@@ -20,20 +19,17 @@ const App = () => {
   const manualLogoutFlag = useRef(false);
   const INACTIVITY_TIMEOUT = 10 * 60 * 1000;
 
-  // Cargar sesión
+  // No iniciar sesión automáticamente
   useEffect(() => {
     const token = localStorage.getItem("authToken");
     const user = localStorage.getItem("currentUser");
     if (token && user) {
-      try {
-        setCurrentUser(JSON.parse(user));
-      } catch (e) {
-        console.error("Error al leer usuario almacenado:", e);
-      }
+      // Puedes validar el token con /api/auth/me si quieres
+      setCurrentUser(null); // ⚠️ No restaurar sesión automáticamente
     }
   }, []);
 
-  // Sincronización inicial
+  // Sincronización inicial después de login
   useEffect(() => {
     if (!currentUser) return;
     const token = localStorage.getItem("authToken");
@@ -52,10 +48,12 @@ const App = () => {
     })();
   }, [currentUser]);
 
-  // Inactividad
   const resetActivityTimer = () => {
     clearTimeout(activityTimer.current);
-    activityTimer.current = setTimeout(() => performLogout(false), INACTIVITY_TIMEOUT);
+    activityTimer.current = setTimeout(
+      () => performLogout(false),
+      INACTIVITY_TIMEOUT
+    );
   };
 
   const performLogout = (isManual = false) => {
@@ -78,7 +76,8 @@ const App = () => {
       resetActivityTimer();
       const events = ["mousemove", "keypress", "click"];
       events.forEach((e) => window.addEventListener(e, resetActivityTimer));
-      return () => events.forEach((e) => window.removeEventListener(e, resetActivityTimer));
+      return () =>
+        events.forEach((e) => window.removeEventListener(e, resetActivityTimer));
     } else {
       clearTimeout(activityTimer.current);
     }
@@ -91,7 +90,7 @@ const App = () => {
 
     try {
       setIsSyncing(true);
-      await syncFromBackend();
+      await initStorageSync(localStorage.getItem("authToken"));
       console.log("✅ Datos sincronizados tras inicio de sesión.");
     } catch (e) {
       console.warn("No se pudo sincronizar tras login:", e);
@@ -147,7 +146,10 @@ const App = () => {
         {currentPage === "userManagement" ? (
           <UserManagement />
         ) : (
-          <PublicDashboard currentPage={currentPage} currentUser={currentUser} />
+          <PublicDashboard
+            currentPage={currentPage}
+            currentUser={currentUser}
+          />
         )}
       </div>
     </div>

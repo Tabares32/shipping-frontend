@@ -1,113 +1,67 @@
-// ✅ src/utils/storage.js
-const API_URL = "https://shipping-backend-kgm5.onrender.com/api";
-let authToken = null;
+// src/utils/storage.js
+const BACKEND =
+  process.env.REACT_APP_BACKEND_URL ||
+  "https://shipping-backend-kgm5.onrender.com";
 
-/**
- * Inicializa sincronización global (baja datos y luego sube cambios).
- * Se ejecuta tras login exitoso.
- */
-export async function initStorageSync(token) {
-  console.log("🚀 Inicializando sincronización automática...");
-  authToken = token;
-
-  try {
-    await syncFromBackend();
-    console.log("✅ Sincronización inicial completada");
-  } catch (err) {
-    console.warn("⚠️ No se pudo sincronizar al inicio:", err);
-  }
-
-  // Sincroniza cada 30 segundos automáticamente
-  setInterval(() => {
-    syncToBackend();
-  }, 30000);
-}
-
-/**
- * 🔽 Descarga todos los datos del backend y los guarda en localStorage
- */
+// Cargar datos desde el backend
 export async function syncFromBackend() {
-  console.log("🌐 Iniciando sincronización desde backend:", API_URL);
-  try {
-    const res = await fetch(`${API_URL}/sync/data`, {
-      method: "GET",
-      headers: {
-        Authorization: authToken ? `Bearer ${authToken}` : "",
-      },
-    });
-
-    if (!res.ok) throw new Error(`Backend respondió con ${res.status}`);
-
-    const data = await res.json();
-    localStorage.setItem("shippingData", JSON.stringify(data));
-    console.log("📥 Datos descargados desde backend");
-    return data;
-  } catch (error) {
-    console.error("❌ Error al sincronizar desde backend:", error);
-    throw error;
-  }
+  const res = await fetch(`${BACKEND}/api/sync/data`);
+  const data = await res.json();
+  Object.entries(data).forEach(([key, value]) => {
+    localStorage.setItem(key, JSON.stringify(value));
+  });
 }
 
-/**
- * 🔼 Sube los datos locales al backend
- */
+// Subir datos al backend
 export async function syncToBackend() {
-  if (!authToken) {
-    console.warn("⚠️ No hay token, omitiendo syncToBackend");
+  const token = localStorage.getItem("authToken");
+  if (!token) {
+    console.warn("❌ No hay token para sincronizar");
     return;
   }
 
-  try {
-    const raw = localStorage.getItem("shippingData");
-    if (!raw) return;
-    const data = JSON.parse(raw);
+  const data = {};
+  for (const key of Object.keys(localStorage)) {
+    if (key === "authToken" || key === "currentUser") continue;
+    try {
+      data[key] = JSON.parse(localStorage.getItem(key));
+    } catch {
+      data[key] = localStorage.getItem(key);
+    }
+  }
 
-    const res = await fetch(`${API_URL}/sync/upload`, {
+  try {
+    const res = await fetch(`${BACKEND}/api/sync/upload`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${authToken}`,
+        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify(data),
     });
 
+    const result = await res.json();
     if (!res.ok) {
-      const errText = await res.text();
-      console.error("❌ Error durante sincronización:", errText);
+      console.error("❌ Error durante sincronización:", result);
     } else {
-      console.log("☁️ Datos sincronizados correctamente con backend");
+      console.log("✅ Datos sincronizados:", result);
     }
   } catch (err) {
-    console.error("⚠️ Error subiendo datos:", err);
+    console.error("❌ Error de red al sincronizar:", err);
   }
 }
 
-/**
- * 💾 Guarda datos en localStorage y lanza sincronización inmediata
- */
-export function saveData(key, value) {
-  const raw = localStorage.getItem("shippingData");
-  const data = raw ? JSON.parse(raw) : {};
-  data[key] = value;
-  localStorage.setItem("shippingData", JSON.stringify(data));
-  syncToBackend(); // sube inmediatamente al backend
+// Inicializar sincronización al iniciar sesión
+export async function initStorageSync(token) {
+  localStorage.setItem("authToken", token);
+  await syncFromBackend();
 }
 
-/**
- * 📦 Obtiene datos locales
- */
-export function getStorage(key) {
-  const raw = localStorage.getItem("shippingData");
-  const data = raw ? JSON.parse(raw) : {};
-  return data[key];
-}
-
-/**
- * 🧠 Guarda datos locales sin sincronizar (uso interno)
- */
+// Guardar datos en localStorage
 export function setStorage(key, value) {
-  const raw = localStorage.getItem("shippingData");
-  const data = raw ? JSON.parse(raw) : {};
-  data[key] = value;
-  localStorage.setItem("shippingData", JSON.stringify(data));
+  if (value === null) {
+    localStorage.removeItem(key);
+  } else {
+    localStorage.setItem(key, JSON.stringify(value));
+  }
 }
