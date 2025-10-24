@@ -7,8 +7,8 @@ import PublicDashboard from "./components/PublicDashboard";
 import {
   getStorage,
   setStorage,
-  syncFromBackend, // ✅ nombre corregido
-  initStorageSync, // ✅ nombre corregido
+  syncFromBackend,
+  initStorageSync,
 } from "./utils/storage";
 
 const App = () => {
@@ -19,8 +19,22 @@ const App = () => {
   const manualLogoutFlag = useRef(false);
   const INACTIVITY_TIMEOUT = 10 * 60 * 1000; // 10 minutos
 
-  // 🚀 Sincronización inicial global al cargar la app
+  // 🔐 Cargar sesión de usuario desde localStorage
   useEffect(() => {
+    const token = localStorage.getItem("authToken");
+    const user = localStorage.getItem("currentUser");
+    if (token && user) {
+      try {
+        setCurrentUser(JSON.parse(user));
+      } catch (e) {
+        console.error("Error al leer usuario almacenado:", e);
+      }
+    }
+  }, []);
+
+  // 🚀 Sincronización inicial global al cargar la app (solo si hay sesión)
+  useEffect(() => {
+    if (!currentUser) return;
     const token = localStorage.getItem("authToken");
     if (!token) return;
 
@@ -35,20 +49,7 @@ const App = () => {
         setIsSyncing(false);
       }
     })();
-  }, []);
-
-  // 🔐 Cargar sesión de usuario desde localStorage
-  useEffect(() => {
-    const token = localStorage.getItem("authToken");
-    const user = localStorage.getItem("currentUser");
-    if (token && user) {
-      try {
-        setCurrentUser(JSON.parse(user));
-      } catch (e) {
-        console.error("Error al leer usuario almacenado:", e);
-      }
-    }
-  }, []);
+  }, [currentUser]);
 
   // 🕓 Control de inactividad
   const resetActivityTimer = () => {
@@ -91,7 +92,7 @@ const App = () => {
 
     try {
       setIsSyncing(true);
-      await syncFromBackend(); // ✅ nombre corregido
+      await syncFromBackend();
       console.log("✅ Datos sincronizados tras inicio de sesión.");
     } catch (e) {
       console.warn("No se pudo sincronizar tras login:", e);
