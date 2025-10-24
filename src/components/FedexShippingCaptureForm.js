@@ -23,7 +23,7 @@ const FedexShippingCaptureForm = () => {
 
   const handleScanInvoice = (text) => {
     setScanInvoice(text);
-    const match = text.match(/^(\w+),/);
+    const match = text.match(/^([\w\-]+),/);
     if (match) {
       setSelectedInvoice(match[1]);
     }
@@ -46,20 +46,23 @@ const FedexShippingCaptureForm = () => {
     };
   };
 
+  const persistEntries = async (entries) => {
+    setStorage('fedexOrders', entries);
+    await syncToBackend();
+    setCurrentEntries(entries);
+  };
+
   const handleAddLine = async () => {
     if (!selectedInvoice || !selectedFinishedGood || !shippingDateForCut) {
       setMessage('Faltan datos obligatorios para guardar la línea.');
       return;
     }
-
     const newEntry = createEntry();
     const updated = [...currentEntries, newEntry];
-    setStorage('fedexOrders', updated);
-    await syncToBackend();
-    setCurrentEntries(updated);
+    await persistEntries(updated);
     setMessage(`¡Línea ${newEntry.lineNumber} guardada con éxito para invoice ${selectedInvoice}!`);
 
-    // Limpieza parcial
+    // Limpieza parcial para nueva captura estándar
     setScanInvoice('');
     setSelectedInvoice('');
     setSearchTermFG('');
@@ -73,23 +76,30 @@ const FedexShippingCaptureForm = () => {
       setMessage('Faltan datos obligatorios para guardar la línea.');
       return;
     }
-
     const newEntry = createEntry();
     const updated = [...currentEntries, newEntry];
-    setStorage('fedexOrders', updated);
-    await syncToBackend();
-    setCurrentEntries(updated);
+    await persistEntries(updated);
     setMessage(`¡Línea ${newEntry.lineNumber} guardada! Puedes capturar otra del mismo invoice.`);
 
-    // Limpieza parcial para captura rápida
+    // Limpieza parcial para captura rápida: mantiene observación, tracking y comentarios
     setScanInvoice('');
     setSelectedInvoice('');
     setSearchTermFG('');
     setSelectedFinishedGood('');
   };
 
-  const handleSaveOrder = () => {
+  const handleSaveOrder = async () => {
+    // Si hace falta alguna validación extra se puede agregar aquí antes de confirmar
+    await persistEntries(currentEntries);
     setMessage('¡Orden completa guardada con éxito!');
+    // No limpiamos entradas para que el usuario vea el historial; si quieres limpiar, descomenta:
+    // setCurrentEntries([]);
+    // setStorage('fedexOrders', []);
+  };
+
+  const handleSelectFinishedGood = (fg) => {
+    setSelectedFinishedGood(fg.name);
+    setSearchTermFG(fg.name);
   };
 
   const filteredFinishedGoods = finishedGoodsList.filter(fg =>
@@ -99,6 +109,7 @@ const FedexShippingCaptureForm = () => {
   return (
     <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-6xl mx-auto">
       <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">Captura de Envíos Fedex</h2>
+
       {message && <p className="text-green-600 text-center mb-4">{message}</p>}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
@@ -119,6 +130,7 @@ const FedexShippingCaptureForm = () => {
             className="w-full px-4 py-2 border border-gray-300 rounded-lg"
             value={scanInvoice}
             onChange={(e) => handleScanInvoice(e.target.value)}
+            placeholder="Ej. 693284U,S-3263TM (1 of 1),Two Tone..."
           />
         </div>
 
@@ -126,9 +138,9 @@ const FedexShippingCaptureForm = () => {
           <label className="block text-gray-700 text-sm font-semibold mb-2">Invoice (Automático)</label>
           <input
             type="text"
+            readOnly
             className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100"
             value={selectedInvoice}
-            readOnly
           />
         </div>
 
@@ -139,17 +151,15 @@ const FedexShippingCaptureForm = () => {
             className="w-full px-4 py-2 border border-gray-300 rounded-lg"
             value={searchTermFG}
             onChange={(e) => setSearchTermFG(e.target.value)}
-            placeholder="Ej. SDB"
+            placeholder="Ej. SDB o parte completa"
+            autoComplete="off"
           />
-          {filteredFinishedGoods.length > 0 && (
-            <ul className="bg-white border rounded-lg mt-2 max-h-40 overflow-auto shadow">
+          {searchTermFG && filteredFinishedGoods.length > 0 && (
+            <ul className="bg-white border rounded-lg mt-2 max-h-44 overflow-auto shadow z-20 relative">
               {filteredFinishedGoods.map((fg) => (
                 <li
                   key={fg.id}
-                  onClick={() => {
-                    setSelectedFinishedGood(fg.name);
-                    setSearchTermFG(fg.name);
-                  }}
+                  onClick={() => handleSelectFinishedGood(fg)}
                   className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
                 >
                   {fg.name}
@@ -222,23 +232,14 @@ const FedexShippingCaptureForm = () => {
           <table className="min-w-full bg-white border border-gray-200 rounded-lg shadow-sm">
             <thead className="bg-gray-100">
               <tr>
-                <th className="py-3 px-4">Invoice</th>
-                <th className="py-3 px-4">Finished Good</th>
-                <th className="py-3 px-4">Observación</th>
-                <th className="py-3 px-4">Tracking</th>
-                <th className="py-3 px-4">Comentarios</th>
-                <th className="py-3 px-4">Fecha Corte</th>
-                <th className="py-3 px-4">Línea</th>
-                <th className="py-3 px-4">Hora</th>
-              </tr>
-            </thead>
-            <tbody>
-              {currentEntries.map((entry) => (
-                <tr key
-                <th className="py-3 px-4">Comentarios</th>
-                <th className="py-3 px-4">Fecha Corte</th>
-                <th className="py-3 px-4">Línea</th>
-                <th className="py-3 px-4">Hora</th>
+                <th className="py-3 px-4 text-left">Invoice</th>
+                <th className="py-3 px-4 text-left">Finished Good</th>
+                <th className="py-3 px-4 text-left">Observación</th>
+                <th className="py-3 px-4 text-left">Tracking</th>
+                <th className="py-3 px-4 text-left">Comentarios</th>
+                <th className="py-3 px-4 text-left">Fecha Corte</th>
+                <th className="py-3 px-4 text-left">Línea</th>
+                <th className="py-3 px-4 text-left">Hora</th>
               </tr>
             </thead>
             <tbody>
