@@ -1,94 +1,74 @@
 import React, { useState, useEffect } from 'react';
 import { getStorage, setStorage, syncToBackend } from '../utils/storage';
-import { mockFinishedGoods } from '../mock/finishedGoods';
-import { mockMaterials } from '../mock/materials';
 
 const FedexShippingCaptureForm = () => {
-  const [currentEntries, setCurrentEntries] = useState([]);
-  const [editingEntryId, setEditingEntryId] = useState(null);
+  const [scanInvoice, setScanInvoice] = useState('');
+  const [selectedInvoice, setSelectedInvoice] = useState('');
+  const [searchTermFG, setSearchTermFG] = useState('');
   const [selectedFinishedGood, setSelectedFinishedGood] = useState('');
   const [selectedObservation, setSelectedObservation] = useState('');
   const [trackingNumber, setTrackingNumber] = useState('');
   const [comments, setComments] = useState('');
-  const [selectedInvoice, setSelectedInvoice] = useState('');
-  const [currentShippingDate, setCurrentShippingDate] = useState('');
+  const [shippingDateForCut, setShippingDateForCut] = useState('');
+  const [currentEntries, setCurrentEntries] = useState([]);
   const [message, setMessage] = useState('');
+
+  const finishedGoodsList = getStorage('finishedGoods') || [];
+  const observationOptions = getStorage('observations') || [];
 
   useEffect(() => {
     const stored = getStorage('fedexOrders') || [];
     setCurrentEntries(stored);
   }, []);
 
-  const handleAddEntry = async () => {
-    if (!selectedFinishedGood || !selectedInvoice || !currentShippingDate) {
+  const handleScanInvoice = (text) => {
+    setScanInvoice(text);
+    const match = text.match(/^(\w+),/);
+    if (match) {
+      setSelectedInvoice(match[1]);
+    }
+    setSearchTermFG('');
+    setSelectedFinishedGood('');
+  };
+
+  const handleAddLine = async () => {
+    if (!selectedInvoice || !selectedFinishedGood || !shippingDateForCut) {
       setMessage('Faltan datos obligatorios para guardar la línea.');
       return;
     }
 
+    const lineCount = currentEntries.filter(e => e.invoice === selectedInvoice).length + 1;
+
     const newEntry = {
       id: Date.now(),
+      invoice: selectedInvoice,
       finishedGood: selectedFinishedGood,
       observation: selectedObservation,
       trackingNumber,
       comments,
-      invoice: selectedInvoice,
-      shippingDate: currentShippingDate,
-      lineCount: 1,
-      captureTime: new Date().toLocaleString(),
+      shippingDate: shippingDateForCut,
+      lineNumber: lineCount,
+      captureTime: new Date().toLocaleTimeString(),
     };
 
     const updated = [...currentEntries, newEntry];
     setStorage('fedexOrders', updated);
     await syncToBackend();
     setCurrentEntries(updated);
-    setMessage('¡Línea guardada con éxito!');
-    resetForm();
-  };
+    setMessage(`¡Línea ${lineCount} guardada con éxito para invoice ${selectedInvoice}!`);
 
-  const handleEditEntry = (entry) => {
-    setEditingEntryId(entry.id);
-    setSelectedFinishedGood(entry.finishedGood);
-    setSelectedObservation(entry.observation);
-    setTrackingNumber(entry.trackingNumber);
-    setComments(entry.comments);
-    setSelectedInvoice(entry.invoice);
-    setCurrentShippingDate(entry.shippingDate);
-  };
-
-  const handleUpdateEntry = async () => {
-    const updated = currentEntries.map((entry) =>
-      entry.id === editingEntryId
-        ? {
-            ...entry,
-            finishedGood: selectedFinishedGood,
-            observation: selectedObservation,
-            trackingNumber,
-            comments,
-            invoice: selectedInvoice,
-            shippingDate: currentShippingDate,
-          }
-        : entry
-    );
-    setStorage('fedexOrders', updated);
-    await syncToBackend();
-    setCurrentEntries(updated);
-    setMessage('¡Línea actualizada con éxito!');
-    resetForm();
-  };
-
-  const handleCancelEdit = () => {
-    resetForm();
-  };
-
-  const resetForm = () => {
-    setEditingEntryId(null);
+    // Limpieza parcial
+    setScanInvoice('');
+    setSelectedInvoice('');
+    setSearchTermFG('');
     setSelectedFinishedGood('');
-    setSelectedObservation('');
     setTrackingNumber('');
     setComments('');
-    setSelectedInvoice('');
-    setCurrentShippingDate('');
   };
+
+  const filteredFinishedGoods = finishedGoodsList.filter(fg =>
+    fg.name.toLowerCase().includes(searchTermFG.toLowerCase())
+  );
 
   return (
     <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-6xl mx-auto">
@@ -97,32 +77,76 @@ const FedexShippingCaptureForm = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
         <div>
-          <label className="block text-gray-700 text-sm font-semibold mb-2">Invoice</label>
+          <label className="block text-gray-700 text-sm font-semibold mb-2">Fecha de Envío para el Corte</label>
           <input
-            type="text"
+            type="date"
             className="w-full px-4 py-2 border border-gray-300 rounded-lg"
-            value={selectedInvoice}
-            onChange={(e) => setSelectedInvoice(e.target.value)}
+            value={shippingDateForCut}
+            onChange={(e) => setShippingDateForCut(e.target.value)}
           />
         </div>
+
         <div>
-          <label className="block text-gray-700 text-sm font-semibold mb-2">Finished Good</label>
+          <label className="block text-gray-700 text-sm font-semibold mb-2">Scan Invoice</label>
           <input
             type="text"
             className="w-full px-4 py-2 border border-gray-300 rounded-lg"
-            value={selectedFinishedGood}
-            onChange={(e) => setSelectedFinishedGood(e.target.value)}
+            value={scanInvoice}
+            onChange={(e) => handleScanInvoice(e.target.value)}
           />
         </div>
+
+        <div>
+          <label className="block text-gray-700 text-sm font-semibold mb-2">Invoice (Automático)</label>
+          <input
+            type="text"
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100"
+            value={selectedInvoice}
+            readOnly
+          />
+        </div>
+
+        <div>
+          <label className="block text-gray-700 text-sm font-semibold mb-2">Buscar Finished Good</label>
+          <input
+            type="text"
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+            value={searchTermFG}
+            onChange={(e) => setSearchTermFG(e.target.value)}
+            placeholder="Ej. SDB"
+          />
+          {filteredFinishedGoods.length > 0 && (
+            <ul className="bg-white border rounded-lg mt-2 max-h-40 overflow-auto shadow">
+              {filteredFinishedGoods.map((fg) => (
+                <li
+                  key={fg.id}
+                  onClick={() => {
+                    setSelectedFinishedGood(fg.name);
+                    setSearchTermFG(fg.name);
+                  }}
+                  className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
+                >
+                  {fg.name}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
         <div>
           <label className="block text-gray-700 text-sm font-semibold mb-2">Observación</label>
-          <input
-            type="text"
+          <select
             className="w-full px-4 py-2 border border-gray-300 rounded-lg"
             value={selectedObservation}
             onChange={(e) => setSelectedObservation(e.target.value)}
-          />
+          >
+            <option value="">Seleccione una opción</option>
+            {observationOptions.map((obs) => (
+              <option key={obs.id} value={obs.text}>{obs.text}</option>
+            ))}
+          </select>
         </div>
+
         <div>
           <label className="block text-gray-700 text-sm font-semibold mb-2">Tracking Number</label>
           <input
@@ -132,8 +156,9 @@ const FedexShippingCaptureForm = () => {
             onChange={(e) => setTrackingNumber(e.target.value)}
           />
         </div>
+
         <div>
-          <label className="block text-gray-700 text-sm font-semibold mb-2">Comentarios</label>
+          <label className="block text-gray-700 text-sm font-semibold mb-2">Comentarios Adicionales</label>
           <input
             type="text"
             className="w-full px-4 py-2 border border-gray-300 rounded-lg"
@@ -141,41 +166,15 @@ const FedexShippingCaptureForm = () => {
             onChange={(e) => setComments(e.target.value)}
           />
         </div>
-        <div>
-          <label className="block text-gray-700 text-sm font-semibold mb-2">Fecha de Envío</label>
-          <input
-            type="date"
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg"
-            value={currentShippingDate}
-            onChange={(e) => setCurrentShippingDate(e.target.value)}
-          />
-        </div>
       </div>
 
-      <div className="flex justify-center gap-4 mb-6">
-        {editingEntryId ? (
-          <>
-            <button
-              onClick={handleUpdateEntry}
-              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition"
-            >
-              Actualizar Línea
-            </button>
-            <button
-              onClick={handleCancelEdit}
-              className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition"
-            >
-              Cancelar Edición
-            </button>
-          </>
-        ) : (
-          <button
-            onClick={handleAddEntry}
-            className="bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition"
-          >
-            Agregar Línea
-          </button>
-        )}
+      <div className="flex justify-center mb-6">
+        <button
+          onClick={handleAddLine}
+          className="bg-black text-white px-6 py-2 rounded-lg hover:bg-gray-800 transition"
+        >
+          Agregar Línea
+        </button>
       </div>
 
       {currentEntries.length > 0 ? (
@@ -188,8 +187,9 @@ const FedexShippingCaptureForm = () => {
                 <th className="py-3 px-4">Observación</th>
                 <th className="py-3 px-4">Tracking</th>
                 <th className="py-3 px-4">Comentarios</th>
-                <th className="py-3 px-4">Fecha Envío</th>
-                <th className="py-3 px-4">Acciones</th>
+                <th className="py-3 px-4">Fecha Corte</th>
+                <th className="py-3 px-4">Línea</th>
+                <th className="py-3 px-4">Hora</th>
               </tr>
             </thead>
             <tbody>
@@ -201,14 +201,8 @@ const FedexShippingCaptureForm = () => {
                   <td className="py-3 px-4">{entry.trackingNumber}</td>
                   <td className="py-3 px-4">{entry.comments}</td>
                   <td className="py-3 px-4">{entry.shippingDate}</td>
-                  <td className="py-3 px-4">
-                    <button
-                      onClick={() => handleEditEntry(entry)}
-                      className="bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600 transition"
-                    >
-                      Editar
-                    </button>
-                  </td>
+                  <td className="py-3 px-4">Línea {entry.lineNumber}</td>
+                  <td className="py-3 px-4">{entry.captureTime}</td>
                 </tr>
               ))}
             </tbody>
