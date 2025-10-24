@@ -1,37 +1,6 @@
 import React, { useState, useEffect } from 'react';
-
-// API helpers (endpoints expected on backend)
-const fetchFinishedGoods = async () => {
-  try {
-    const res = await fetch('/api/customFinishedGoods');
-    return res.ok ? await res.json() : [];
-  } catch {
-    return [];
-  }
-};
-
-const saveFinishedGoods = async (data) => {
-  try {
-    await fetch('/api/customFinishedGoods', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    return true;
-  } catch {
-    console.error('Error saving finished goods');
-    return false;
-  }
-};
-
-const fetchMaterials = async () => {
-  try {
-    const res = await fetch('/api/materials_bom');
-    return res.ok ? await res.json() : [];
-  } catch {
-    return [];
-  }
-};
+import { getStorage, setStorage } from '../utils/storage';
+import { mockFinishedGoods } from '../mock/finishedGoods';
 
 const FinishedGoodManagement = () => {
   const [finishedGoods, setFinishedGoods] = useState([]);
@@ -43,13 +12,10 @@ const FinishedGoodManagement = () => {
   const [availableMaterials, setAvailableMaterials] = useState([]);
 
   useEffect(() => {
-    const loadData = async () => {
-      const fg = await fetchFinishedGoods();
-      const mats = await fetchMaterials();
-      setFinishedGoods(Array.isArray(fg) ? fg : []);
-      setAvailableMaterials(Array.isArray(mats) ? mats : []);
-    };
-    loadData();
+    const storedFinishedGoods = getStorage('customFinishedGoods') || mockFinishedGoods;
+    const storedMaterials = getStorage('materialsBOM') || [];
+    setFinishedGoods(Array.isArray(storedFinishedGoods) ? storedFinishedGoods : []);
+    setAvailableMaterials(Array.isArray(storedMaterials) ? storedMaterials : []);
     initializeBOMSlots();
   }, []);
 
@@ -81,7 +47,7 @@ const FinishedGoodManagement = () => {
     setNewBOM(updated);
   };
 
-  const handleAddFinishedGood = async () => {
+  const handleAddFinishedGood = () => {
     const filteredBOM = newBOM.filter((b) => b.materialId && Number(b.quantity) > 0);
 
     if (!newFinishedGoodName || !newType || !newVehicleType || filteredBOM.length === 0) {
@@ -97,28 +63,20 @@ const FinishedGoodManagement = () => {
     };
 
     const updated = [...finishedGoods, newFG];
-    const ok = await saveFinishedGoods(updated);
-    if (ok) {
-      setFinishedGoods(updated);
-      setNewFinishedGoodName('');
-      setNewType('');
-      setNewVehicleType('');
-      initializeBOMSlots();
-      showMessage('✅ ¡Finished Good agregado con éxito!');
-    } else {
-      showMessage('Error al guardar Finished Good en el servidor', 4000);
-    }
+    setStorage('customFinishedGoods', updated);
+    setFinishedGoods(updated);
+    setNewFinishedGoodName('');
+    setNewType('');
+    setNewVehicleType('');
+    initializeBOMSlots();
+    showMessage('✅ ¡Finished Good agregado con éxito!');
   };
 
-  const handleRemoveFinishedGood = async (fgToRemove) => {
+  const handleRemoveFinishedGood = (fgToRemove) => {
     const updated = finishedGoods.filter((f) => f.finishedGood !== fgToRemove);
-    const ok = await saveFinishedGoods(updated);
-    if (ok) {
-      setFinishedGoods(updated);
-      showMessage(`🗑️ Finished Good "${fgToRemove}" eliminado.`);
-    } else {
-      showMessage('Error al eliminar Finished Good en el servidor', 4000);
-    }
+    setStorage('customFinishedGoods', updated);
+    setFinishedGoods(updated);
+    showMessage(`🗑️ Finished Good "${fgToRemove}" eliminado.`);
   };
 
   return (
@@ -190,7 +148,7 @@ const FinishedGoodManagement = () => {
                 type="number"
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg"
                 value={item.quantity}
-                onChange={(e) => handleMaterialChangeInBOM(index, 'quantity', parseInt(e.target.value, 10) || 0)}
+                onChange={(e) => handleMaterialChangeInBOM(index, 'quantity', e.target.value)}
                 min="0"
               />
             </div>
