@@ -1,22 +1,6 @@
+// ✅ src/components/AuthLogin.js
 import React, { useState, useEffect } from "react";
-import { setStorage, getStorage } from "../utils/storage";
-import { initStorageSync } from "./storage";
-
-async function handleLogin() {
-  const res = await fetch(`${API_URL}/auth/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username, password }),
-  });
-
-  if (!res.ok) throw new Error("Credenciales inválidas");
-
-  const data = await res.json();
-  localStorage.setItem("authToken", data.token);
-  await initStorageSync(data.token); // 🔹 Arranca sincronización global
-
-  navigate("/dashboard"); // o tu ruta principal
-}
+import { initStorageSync } from "../utils/storage";
 
 const AuthLogin = ({ onLoginSuccess }) => {
   const [username, setUsername] = useState("");
@@ -28,21 +12,6 @@ const AuthLogin = ({ onLoginSuccess }) => {
     process.env.REACT_APP_BACKEND_URL ||
     "https://shipping-backend-kgm5.onrender.com";
 
-  // Crear usuario admin local si no hay ninguno
-  useEffect(() => {
-    const users = getStorage("users") || [];
-    if (users.length === 0) {
-      setStorage("users", [
-        {
-          id: "admin1",
-          username: "admin",
-          password: "adminpassword",
-          role: "admin",
-        },
-      ]);
-    }
-  }, []);
-
   const handleLogin = async () => {
     setError("");
     setMessage("");
@@ -53,16 +22,11 @@ const AuthLogin = ({ onLoginSuccess }) => {
     }
 
     try {
-      const response = await fetch(
-        `${BACKEND.replace(/\/$/, "")}/api/auth/login`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ username, password }),
-        }
-      );
+      const response = await fetch(`${BACKEND}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
+      });
 
       const data = await response.json().catch(() => ({}));
 
@@ -71,14 +35,14 @@ const AuthLogin = ({ onLoginSuccess }) => {
         return;
       }
 
-      const token = data.access_token || data.token;
+      const token = data.token || data.access_token;
       if (!token) {
         setError("El servidor no devolvió un token");
         return;
       }
 
-      // Guardar token y usuario en localStorage
-      localStorage.setItem("token", token);
+      // 🧠 Guardar sesión local
+      localStorage.setItem("authToken", token);
       localStorage.setItem(
         "currentUser",
         JSON.stringify({
@@ -86,6 +50,9 @@ const AuthLogin = ({ onLoginSuccess }) => {
           role: data.role || "user",
         })
       );
+
+      // 🔄 Iniciar sincronización global
+      await initStorageSync(token);
 
       setMessage("Inicio de sesión exitoso 🎉");
       setTimeout(() => {
@@ -101,9 +68,7 @@ const AuthLogin = ({ onLoginSuccess }) => {
     }
   };
 
-  const backgroundStyle = {
-    backgroundColor: "#f0f2f5",
-  };
+  const backgroundStyle = { backgroundColor: "#f0f2f5" };
 
   return (
     <div
