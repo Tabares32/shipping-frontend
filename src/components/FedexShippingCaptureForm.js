@@ -31,15 +31,9 @@ const FedexShippingCaptureForm = () => {
     setSelectedFinishedGood('');
   };
 
-  const handleAddLine = async () => {
-    if (!selectedInvoice || !selectedFinishedGood || !shippingDateForCut) {
-      setMessage('Faltan datos obligatorios para guardar la línea.');
-      return;
-    }
-
+  const createEntry = () => {
     const lineCount = currentEntries.filter(e => e.invoice === selectedInvoice).length + 1;
-
-    const newEntry = {
+    return {
       id: Date.now(),
       invoice: selectedInvoice,
       finishedGood: selectedFinishedGood,
@@ -50,12 +44,20 @@ const FedexShippingCaptureForm = () => {
       lineNumber: lineCount,
       captureTime: new Date().toLocaleTimeString(),
     };
+  };
 
+  const handleAddLine = async () => {
+    if (!selectedInvoice || !selectedFinishedGood || !shippingDateForCut) {
+      setMessage('Faltan datos obligatorios para guardar la línea.');
+      return;
+    }
+
+    const newEntry = createEntry();
     const updated = [...currentEntries, newEntry];
     setStorage('fedexOrders', updated);
     await syncToBackend();
     setCurrentEntries(updated);
-    setMessage(`¡Línea ${lineCount} guardada con éxito para invoice ${selectedInvoice}!`);
+    setMessage(`¡Línea ${newEntry.lineNumber} guardada con éxito para invoice ${selectedInvoice}!`);
 
     // Limpieza parcial
     setScanInvoice('');
@@ -64,6 +66,30 @@ const FedexShippingCaptureForm = () => {
     setSelectedFinishedGood('');
     setTrackingNumber('');
     setComments('');
+  };
+
+  const handleAddLineAndContinue = async () => {
+    if (!selectedInvoice || !selectedFinishedGood || !shippingDateForCut) {
+      setMessage('Faltan datos obligatorios para guardar la línea.');
+      return;
+    }
+
+    const newEntry = createEntry();
+    const updated = [...currentEntries, newEntry];
+    setStorage('fedexOrders', updated);
+    await syncToBackend();
+    setCurrentEntries(updated);
+    setMessage(`¡Línea ${newEntry.lineNumber} guardada! Puedes capturar otra del mismo invoice.`);
+
+    // Limpieza parcial para captura rápida
+    setScanInvoice('');
+    setSelectedInvoice('');
+    setSearchTermFG('');
+    setSelectedFinishedGood('');
+  };
+
+  const handleSaveOrder = () => {
+    setMessage('¡Orden completa guardada con éxito!');
   };
 
   const filteredFinishedGoods = finishedGoodsList.filter(fg =>
@@ -168,12 +194,26 @@ const FedexShippingCaptureForm = () => {
         </div>
       </div>
 
-      <div className="flex justify-center mb-6">
+      <div className="flex justify-center gap-4 mb-6">
         <button
           onClick={handleAddLine}
           className="bg-black text-white px-6 py-2 rounded-lg hover:bg-gray-800 transition"
         >
           Agregar Línea
+        </button>
+
+        <button
+          onClick={handleAddLineAndContinue}
+          className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition"
+        >
+          Agregar Línea +1
+        </button>
+
+        <button
+          onClick={handleSaveOrder}
+          className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition"
+        >
+          Guardar Orden
         </button>
       </div>
 
@@ -186,6 +226,15 @@ const FedexShippingCaptureForm = () => {
                 <th className="py-3 px-4">Finished Good</th>
                 <th className="py-3 px-4">Observación</th>
                 <th className="py-3 px-4">Tracking</th>
+                <th className="py-3 px-4">Comentarios</th>
+                <th className="py-3 px-4">Fecha Corte</th>
+                <th className="py-3 px-4">Línea</th>
+                <th className="py-3 px-4">Hora</th>
+              </tr>
+            </thead>
+            <tbody>
+              {currentEntries.map((entry) => (
+                <tr key
                 <th className="py-3 px-4">Comentarios</th>
                 <th className="py-3 px-4">Fecha Corte</th>
                 <th className="py-3 px-4">Línea</th>
