@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { getStorage, setStorage } from '../utils/storage'; // Import setStorage
+import { getStorage, setStorage, syncToBackend } from '../utils/storage';
 
 const CutReport = () => {
   const [cuts, setCuts] = useState([]);
   const [message, setMessage] = useState('');
 
   useEffect(() => {
-    const storedCuts = getStorage('inventoryCuts') || [];
+    const storedCuts = getStorage('cutsReport') || [];
     setCuts(storedCuts);
     if (storedCuts.length === 0) {
       setMessage('No hay reportes de cortes disponibles.');
@@ -31,12 +31,12 @@ const CutReport = () => {
       }
     });
 
-    let csvContent = "data:text/csv;charset=utf-8," 
-      + headers.join(",") + "\n" 
+    let csvContent = "data:text/csv;charset=utf-8,"
+      + headers.join(",") + "\n"
       + rows.map(e => e.join(",")).join("\n");
 
-    var encodedUri = encodeURI(csvContent);
-    var link = document.createElement("a");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
     link.setAttribute("download", "reporte_cortes.csv");
     document.body.appendChild(link);
@@ -47,8 +47,6 @@ const CutReport = () => {
   const sendEmail = () => {
     const subject = encodeURIComponent("Reporte de Cortes");
     const body = encodeURIComponent("Adjunto el reporte de cortes en formato CSV.");
-    // En un entorno real, necesitarías un backend para adjuntar archivos.
-    // Esto solo abre el cliente de correo con el asunto y cuerpo.
     window.open(`mailto:?subject=${subject}&body=${body}`);
     setMessage('Se ha abierto tu cliente de correo. Por favor, adjunta el archivo CSV manualmente.');
   };
@@ -88,16 +86,16 @@ const CutReport = () => {
                 <table className="min-w-full bg-white border border-gray-200 rounded-lg shadow-sm">
                   <thead className="bg-gray-100">
                     <tr>
-                      <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider border-b">Finished Good</th>
-                      <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider border-b">Cantidad</th>
+                      <th className="py-3 px-4">Finished Good</th>
+                      <th className="py-3 px-4">Cantidad</th>
                     </tr>
                   </thead>
                   <tbody>
                     {Object.entries(cut.data).length > 0 ? (
                       Object.entries(cut.data).map(([fg, count]) => (
-                        <tr key={fg} className="border-b border-gray-200 hover:bg-gray-50 transition-colors duration-150">
-                          <td className="py-3 px-4 text-gray-800">{fg}</td>
-                          <td className="py-3 px-4 text-gray-800 font-medium">{count}</td>
+                        <tr key={fg} className="border-b hover:bg-gray-50">
+                          <td className="py-3 px-4">{fg}</td>
+                          <td className="py-3 px-4 font-medium">{count}</td>
                         </tr>
                       ))
                     ) : (

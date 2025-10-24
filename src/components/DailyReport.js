@@ -13,11 +13,8 @@ const DailyReport = () => {
   }, [reportDate]);
 
   const generateReport = () => {
-    const allFedexRecords = getStorage('fedexShippingRecords') || [];
-    const recordsForDate = allFedexRecords.filter(record => {
-      // Asegurarse de que la fecha de envío exista y coincida con la fecha del reporte
-      return record.shippingDate === reportDate;
-    });
+    const allRecords = getStorage('dailyReport') || [];
+    const recordsForDate = allRecords.filter(record => record.shippingDate === reportDate);
 
     const linesCount = recordsForDate.length;
     const uniqueInvoices = new Set(recordsForDate.map(record => record.invoice));
@@ -27,11 +24,7 @@ const DailyReport = () => {
     setTotalBoxes(boxesCount);
     setReportDetails(recordsForDate);
 
-    if (linesCount === 0) {
-      setMessage('No hay registros para la fecha seleccionada.');
-    } else {
-      setMessage('');
-    }
+    setMessage(linesCount === 0 ? 'No hay registros para la fecha seleccionada.' : '');
   };
 
   const handlePrint = () => {
@@ -40,7 +33,7 @@ const DailyReport = () => {
     document.body.innerHTML = printContent;
     window.print();
     document.body.innerHTML = originalContent;
-    window.location.reload(); // Recargar para restaurar la página
+    window.location.reload();
   };
 
   return (
@@ -76,26 +69,26 @@ const DailyReport = () => {
           <table className="min-w-full bg-white border border-gray-200 rounded-lg shadow-sm">
             <thead className="bg-gray-100">
               <tr>
-                <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider border-b">Línea</th>
-                <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider border-b">Scan Invoice</th>
-                <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider border-b">Invoice</th>
-                <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider border-b">Finished Good</th>
-                <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider border-b">Observación</th>
-                <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider border-b">Tracking</th>
-                <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider border-b">Comentarios</th>
+                <th className="py-3 px-4">Línea</th>
+                <th className="py-3 px-4">Scan Invoice</th>
+                <th className="py-3 px-4">Invoice</th>
+                <th className="py-3 px-4">Finished Good</th>
+                <th className="py-3 px-4">Observación</th>
+                <th className="py-3 px-4">Tracking</th>
+                <th className="py-3 px-4">Comentarios</th>
               </tr>
             </thead>
             <tbody>
               {reportDetails.length > 0 ? (
                 reportDetails.map((record) => (
-                  <tr key={record.id} className="border-b border-gray-200 hover:bg-gray-50 transition-colors duration-150">
-                    <td className="py-3 px-4 text-gray-800">{record.lineCount}</td>
-                    <td className="py-3 px-4 text-gray-800">{record.scanInvoice}</td>
-                    <td className="py-3 px-4 text-gray-800">{record.invoice}</td>
-                    <td className="py-3 px-4 text-gray-800">{record.finishedGood}</td>
-                    <td className="py-3 px-4 text-gray-800">{record.observation}</td>
-                    <td className="py-3 px-4 text-gray-800">{record.trackingNumber}</td>
-                    <td className="py-3 px-4 text-gray-800">{record.comments}</td>
+                  <tr key={record.id} className="border-b hover:bg-gray-50">
+                    <td className="py-3 px-4">{record.lineCount}</td>
+                    <td className="py-3 px-4">{record.scanInvoice}</td>
+                    <td className="py-3 px-4">{record.invoice}</td>
+                    <td className="py-3 px-4">{record.finishedGood}</td>
+                    <td className="py-3 px-4">{record.observation}</td>
+                    <td className="py-3 px-4">{record.trackingNumber}</td>
+                    <td className="py-3 px-4">{record.comments}</td>
                   </tr>
                 ))
               ) : (

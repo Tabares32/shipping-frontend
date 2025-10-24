@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { getStorage, setStorage } from '../utils/storage';
+import { getStorage, setStorage, syncToBackend } from '../utils/storage';
 import { mockFinishedGoods } from '../mock/finishedGoods';
 
 const InventoryCaptureForm = () => {
@@ -15,11 +15,7 @@ const InventoryCaptureForm = () => {
     const value = e.target.value;
     setScanInvoice(value);
     const match = value.match(/(\d{6}U)/);
-    if (match) {
-      setInvoice(match[1]);
-    } else {
-      setInvoice('');
-    }
+    setInvoice(match ? match[1] : '');
   };
 
   const handlePartNumberChange = (e) => {
@@ -29,7 +25,7 @@ const InventoryCaptureForm = () => {
     setFinishedGood(fg ? fg.finishedGood : 'No encontrado');
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const now = new Date();
     const newEntry = {
       id: Date.now(),
@@ -40,12 +36,15 @@ const InventoryCaptureForm = () => {
       observation,
       trackingNumber,
       captureTime: now.toLocaleString(),
-      shippingDate: '', // Se actualizará en el reporte
-      lineCount: 1, // Asumimos 1 línea por cada captura individual
+      shippingDate: '',
+      lineCount: 1,
     };
 
-    const currentInventory = getStorage('inventoryRecords') || [];
-    setStorage('inventoryRecords', [...currentInventory, newEntry]);
+    const currentInventory = getStorage('finishedGoods') || [];
+    const updatedInventory = [...currentInventory, newEntry];
+    setStorage('finishedGoods', updatedInventory);
+    await syncToBackend();
+
     setMessage('¡Registro de inventario guardado con éxito!');
     setScanInvoice('');
     setInvoice('');
