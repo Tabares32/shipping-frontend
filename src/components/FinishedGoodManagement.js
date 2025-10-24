@@ -1,25 +1,28 @@
 import React, { useState, useEffect } from 'react';
 
-// API helpers (endpoints expected on backend)
+// === API helpers ===
 const fetchFinishedGoods = async () => {
   try {
     const res = await fetch('/api/customFinishedGoods');
-    return res.ok ? await res.json() : [];
-  } catch {
+    if (!res.ok) throw new Error('Error fetching finished goods');
+    return await res.json();
+  } catch (err) {
+    console.error('❌ Error cargando finished goods:', err);
     return [];
   }
 };
 
 const saveFinishedGoods = async (data) => {
   try {
-    await fetch('/api/customFinishedGoods', {
+    const res = await fetch('/api/customFinishedGoods', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
+    if (!res.ok) throw new Error('Error saving finished goods');
     return true;
-  } catch {
-    console.error('Error saving finished goods');
+  } catch (err) {
+    console.error('❌ Error guardando finished goods:', err);
     return false;
   }
 };
@@ -27,12 +30,15 @@ const saveFinishedGoods = async (data) => {
 const fetchMaterials = async () => {
   try {
     const res = await fetch('/api/materials_bom');
-    return res.ok ? await res.json() : [];
-  } catch {
+    if (!res.ok) throw new Error('Error fetching materials');
+    return await res.json();
+  } catch (err) {
+    console.error('❌ Error cargando materiales (BOM):', err);
     return [];
   }
 };
 
+// === COMPONENTE PRINCIPAL ===
 const FinishedGoodManagement = () => {
   const [finishedGoods, setFinishedGoods] = useState([]);
   const [newFinishedGoodName, setNewFinishedGoodName] = useState('');
@@ -41,18 +47,22 @@ const FinishedGoodManagement = () => {
   const [newBOM, setNewBOM] = useState([]);
   const [message, setMessage] = useState('');
   const [availableMaterials, setAvailableMaterials] = useState([]);
+  const [loading, setLoading] = useState(true);
 
+  // === Cargar datos al iniciar ===
   useEffect(() => {
     const loadData = async () => {
-      const fg = await fetchFinishedGoods();
-      const mats = await fetchMaterials();
+      setLoading(true);
+      const [fg, mats] = await Promise.all([fetchFinishedGoods(), fetchMaterials()]);
       setFinishedGoods(Array.isArray(fg) ? fg : []);
       setAvailableMaterials(Array.isArray(mats) ? mats : []);
+      setLoading(false);
     };
     loadData();
     initializeBOMSlots();
   }, []);
 
+  // Crear estructura vacía de BOM (16 posiciones)
   const initializeBOMSlots = () => {
     const slots = Array.from({ length: 16 }, () => ({
       materialId: '',
@@ -67,6 +77,7 @@ const FinishedGoodManagement = () => {
     if (timeout > 0) setTimeout(() => setMessage(''), timeout);
   };
 
+  // === Modificar materiales dentro del BOM ===
   const handleMaterialChangeInBOM = (index, field, value) => {
     const updated = newBOM.slice();
     updated[index] = { ...updated[index], [field]: field === 'quantity' ? Number(value) : value };
@@ -75,12 +86,13 @@ const FinishedGoodManagement = () => {
       const material =
         availableMaterials.find((m) => m.materialId === value) ||
         availableMaterials.find((m) => m.id === value);
-      updated[index].name = material ? (material.name || material.nombre || '') : '';
+      updated[index].name = material ? material.name || material.nombre || '' : '';
     }
 
     setNewBOM(updated);
   };
 
+  // === Agregar nuevo Finished Good ===
   const handleAddFinishedGood = async () => {
     const filteredBOM = newBOM.filter((b) => b.materialId && Number(b.quantity) > 0);
 
@@ -93,7 +105,11 @@ const FinishedGoodManagement = () => {
       finishedGood: newFinishedGoodName,
       type: newType,
       vehicleType: newVehicleType,
-      bom: filteredBOM.map((b) => ({ materialId: b.materialId, name: b.name || '', quantity: Number(b.quantity) })),
+      bom: filteredBOM.map((b) => ({
+        materialId: b.materialId,
+        name: b.name || '',
+        quantity: Number(b.quantity),
+      })),
     };
 
     const updated = [...finishedGoods, newFG];
@@ -106,32 +122,46 @@ const FinishedGoodManagement = () => {
       initializeBOMSlots();
       showMessage('✅ ¡Finished Good agregado con éxito!');
     } else {
-      showMessage('Error al guardar Finished Good en el servidor', 4000);
+      showMessage('❌ Error guardando Finished Good en el servidor');
     }
   };
 
+  // === Eliminar Finished Good ===
   const handleRemoveFinishedGood = async (fgToRemove) => {
+    if (!window.confirm(`¿Seguro que deseas eliminar "${fgToRemove}"?`)) return;
     const updated = finishedGoods.filter((f) => f.finishedGood !== fgToRemove);
     const ok = await saveFinishedGoods(updated);
     if (ok) {
       setFinishedGoods(updated);
       showMessage(`🗑️ Finished Good "${fgToRemove}" eliminado.`);
     } else {
-      showMessage('Error al eliminar Finished Good en el servidor', 4000);
+      showMessage('❌ Error al eliminar Finished Good en el servidor');
     }
   };
 
+  if (loading)
+    return <p className="text-center text-gray-500 mt-10">Cargando datos...</p>;
+
+  // === Render principal ===
   return (
-    <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-4xl mx-auto">
-      <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">Gestión de Finished Goods</h2>
+    <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-5xl mx-auto">
+      <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">
+        Gestión de Finished Goods
+      </h2>
+
       {message && <p className="text-green-600 text-center mb-4">{message}</p>}
 
+      {/* Formulario de nuevo FG */}
       <div className="mb-8 p-6 border border-gray-200 rounded-lg bg-gray-50">
-        <h3 className="text-xl font-semibold text-gray-700 mb-4">Agregar Nuevo Finished Good</h3>
+        <h3 className="text-xl font-semibold text-gray-700 mb-4">
+          Agregar Nuevo Finished Good
+        </h3>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
           <div>
-            <label className="block text-gray-700 text-sm font-semibold mb-2">Nombre Finished Good</label>
+            <label className="block text-gray-700 text-sm font-semibold mb-2">
+              Nombre Finished Good
+            </label>
             <input
               type="text"
               className="w-full px-4 py-2 border border-gray-300 rounded-lg"
@@ -141,7 +171,9 @@ const FinishedGoodManagement = () => {
           </div>
 
           <div>
-            <label className="block text-gray-700 text-sm font-semibold mb-2">Tipo (Front/Rear)</label>
+            <label className="block text-gray-700 text-sm font-semibold mb-2">
+              Tipo (Front/Rear)
+            </label>
             <select
               className="w-full px-4 py-2 border border-gray-300 rounded-lg"
               value={newType}
@@ -154,7 +186,9 @@ const FinishedGoodManagement = () => {
           </div>
 
           <div className="md:col-span-2">
-            <label className="block text-gray-700 text-sm font-semibold mb-2">Tipo de Vehículo</label>
+            <label className="block text-gray-700 text-sm font-semibold mb-2">
+              Tipo de Vehículo
+            </label>
             <select
               className="w-full px-4 py-2 border border-gray-300 rounded-lg"
               value={newVehicleType}
@@ -168,19 +202,28 @@ const FinishedGoodManagement = () => {
           </div>
         </div>
 
-        <h4 className="text-lg font-semibold text-gray-700 mb-3">Bill of Materials (BOM) - 16 Materiales</h4>
+        {/* BOM */}
+        <h4 className="text-lg font-semibold text-gray-700 mb-3">
+          Bill of Materials (BOM) - 16 Materiales
+        </h4>
         {newBOM.map((item, index) => (
           <div key={index} className="grid grid-cols-3 gap-4 mb-2">
             <div className="col-span-2">
               <select
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg"
                 value={item.materialId}
-                onChange={(e) => handleMaterialChangeInBOM(index, 'materialId', e.target.value)}
+                onChange={(e) =>
+                  handleMaterialChangeInBOM(index, 'materialId', e.target.value)
+                }
               >
                 <option value="">Material {index + 1}</option>
                 {availableMaterials.map((material) => (
-                  <option key={material.materialId || material.id} value={material.materialId || material.id}>
-                    {(material.materialId || material.id)} - {material.name || material.nombre} (Stock: {material.stock})
+                  <option
+                    key={material.materialId || material.id}
+                    value={material.materialId || material.id}
+                  >
+                    {(material.materialId || material.id)} - {material.name || material.nombre}{' '}
+                    (Stock: {material.stock})
                   </option>
                 ))}
               </select>
@@ -190,7 +233,9 @@ const FinishedGoodManagement = () => {
                 type="number"
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg"
                 value={item.quantity}
-                onChange={(e) => handleMaterialChangeInBOM(index, 'quantity', parseInt(e.target.value, 10) || 0)}
+                onChange={(e) =>
+                  handleMaterialChangeInBOM(index, 'quantity', e.target.value)
+                }
                 min="0"
               />
             </div>
@@ -205,7 +250,10 @@ const FinishedGoodManagement = () => {
         </button>
       </div>
 
-      <h3 className="text-xl font-semibold text-gray-700 mb-4">Finished Goods Existentes</h3>
+      {/* Tabla de FG existentes */}
+      <h3 className="text-xl font-semibold text-gray-700 mb-4">
+        Finished Goods Existentes
+      </h3>
       <div className="overflow-x-auto">
         <table className="min-w-full bg-white border border-gray-200 rounded-lg shadow-sm">
           <thead className="bg-gray-100">
@@ -229,7 +277,8 @@ const FinishedGoodManagement = () => {
                       <ul className="list-disc list-inside">
                         {item.bom.map((mat, j) => (
                           <li key={j}>
-                            <strong>{mat.materialId}</strong> (x{mat.quantity}) {mat.name ? `- ${mat.name}` : ''}
+                            <strong>{mat.materialId}</strong> (x{mat.quantity}){' '}
+                            {mat.name ? `- ${mat.name}` : ''}
                           </li>
                         ))}
                       </ul>

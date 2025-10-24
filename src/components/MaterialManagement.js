@@ -1,19 +1,33 @@
 import React, { useState, useEffect } from 'react';
 
-// API helpers
+// === API helpers ===
 const fetchMaterials = async () => {
-  const res = await fetch('/api/materials_bom');
-  return res.ok ? await res.json() : [];
+  try {
+    const res = await fetch('/api/materials_bom');
+    if (!res.ok) throw new Error('Error fetching materials');
+    return await res.json();
+  } catch (err) {
+    console.error('❌ Error cargando materiales:', err);
+    return [];
+  }
 };
 
 const saveMaterials = async (data) => {
-  await fetch('/api/materials_bom', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-  });
+  try {
+    const res = await fetch('/api/materials_bom', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error('Error saving materials');
+    return true;
+  } catch (err) {
+    console.error('❌ Error guardando materiales:', err);
+    return false;
+  }
 };
 
+// === COMPONENTE PRINCIPAL ===
 const MaterialManagement = () => {
   const [materials, setMaterials] = useState([]);
   const [newMaterialName, setNewMaterialName] = useState('');
@@ -21,13 +35,17 @@ const MaterialManagement = () => {
   const [newMaterialStock, setNewMaterialStock] = useState(0);
   const [message, setMessage] = useState('');
   const [editingMaterial, setEditingMaterial] = useState(null);
+  const [loading, setLoading] = useState(true);
 
+  // Cargar materiales al iniciar
   useEffect(() => {
-    const load = async () => {
+    const loadMaterials = async () => {
+      setLoading(true);
       const mats = await fetchMaterials();
       setMaterials(Array.isArray(mats) ? mats : []);
+      setLoading(false);
     };
-    load();
+    loadMaterials();
   }, []);
 
   const showMessage = (text, timeout = 3000) => {
@@ -35,29 +53,34 @@ const MaterialManagement = () => {
     if (timeout > 0) setTimeout(() => setMessage(''), timeout);
   };
 
+  // Agregar nuevo material
   const handleAddMaterial = async () => {
     if (!newMaterialName || !newMaterialId || newMaterialStock < 0) {
-      showMessage('¡Todos los campos son obligatorios y el stock debe ser >= 0!');
+      showMessage('⚠️ Todos los campos son obligatorios y el stock debe ser >= 0');
       return;
     }
-    if (materials.some(m => m.materialId === newMaterialId)) {
-      showMessage('¡Ese ID de material ya existe! Elige otro, por favor.');
+    if (materials.some((m) => m.materialId === newMaterialId)) {
+      showMessage('⚠️ Ese ID de material ya existe');
       return;
     }
 
     const newMaterial = {
       materialId: newMaterialId,
       name: newMaterialName,
-      stock: newMaterialStock,
+      stock: Number(newMaterialStock),
     };
 
     const updated = [...materials, newMaterial];
-    await saveMaterials(updated);
-    setMaterials(updated);
-    setNewMaterialName('');
-    setNewMaterialId('');
-    setNewMaterialStock(0);
-    showMessage('¡Material agregado con éxito!');
+    const ok = await saveMaterials(updated);
+    if (ok) {
+      setMaterials(updated);
+      setNewMaterialName('');
+      setNewMaterialId('');
+      setNewMaterialStock(0);
+      showMessage('✅ Material agregado con éxito');
+    } else {
+      showMessage('❌ Error guardando material en el servidor');
+    }
   };
 
   const handleEditClick = (material) => {
@@ -66,19 +89,22 @@ const MaterialManagement = () => {
   };
 
   const handleSaveEdit = async () => {
-    if (!editingMaterial.name || !editingMaterial.materialId || editingMaterial.stock < 0) {
-      showMessage('¡Todos los campos son obligatorios y el stock debe ser >= 0!');
+    if (!editingMaterial.name || editingMaterial.stock < 0) {
+      showMessage('⚠️ Campos inválidos');
       return;
     }
 
-    const updated = materials.map(m =>
+    const updated = materials.map((m) =>
       m.materialId === editingMaterial.materialId ? editingMaterial : m
     );
-
-    await saveMaterials(updated);
-    setMaterials(updated);
-    setEditingMaterial(null);
-    showMessage('¡Material actualizado con éxito!');
+    const ok = await saveMaterials(updated);
+    if (ok) {
+      setMaterials(updated);
+      setEditingMaterial(null);
+      showMessage('✅ Material actualizado');
+    } else {
+      showMessage('❌ Error guardando cambios');
+    }
   };
 
   const handleCancelEdit = () => {
@@ -87,19 +113,27 @@ const MaterialManagement = () => {
   };
 
   const handleRemoveMaterial = async (materialId) => {
-    if (window.confirm('¿Estás seguro de que quieres eliminar este material?')) {
-      const updated = materials.filter(m => m.materialId !== materialId);
-      await saveMaterials(updated);
+    if (!window.confirm('¿Seguro que deseas eliminar este material?')) return;
+    const updated = materials.filter((m) => m.materialId !== materialId);
+    const ok = await saveMaterials(updated);
+    if (ok) {
       setMaterials(updated);
-      showMessage('¡Material eliminado con éxito!');
+      showMessage('🗑️ Material eliminado');
+    } else {
+      showMessage('❌ Error eliminando material');
     }
   };
 
+  if (loading) return <p className="text-center text-gray-500 mt-10">Cargando materiales...</p>;
+
   return (
     <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-4xl mx-auto">
-      <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">Gestión de Materiales (BOM)</h2>
+      <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">
+        Gestión de Materiales (BOM)
+      </h2>
       {message && <p className="text-green-600 text-center mb-4">{message}</p>}
 
+      {/* Formulario */}
       <div className="mb-8 p-6 border border-gray-200 rounded-lg bg-gray-50">
         <h3 className="text-xl font-semibold text-gray-700 mb-4">
           {editingMaterial ? 'Editar Material' : 'Agregar Nuevo Material'}
@@ -120,7 +154,6 @@ const MaterialManagement = () => {
               disabled={!!editingMaterial}
             />
           </div>
-
           <div>
             <label className="block text-gray-700 text-sm font-semibold mb-2">Nombre</label>
             <input
@@ -134,7 +167,6 @@ const MaterialManagement = () => {
               }
             />
           </div>
-
           <div>
             <label className="block text-gray-700 text-sm font-semibold mb-2">Stock</label>
             <input
@@ -144,7 +176,10 @@ const MaterialManagement = () => {
               value={editingMaterial ? editingMaterial.stock : newMaterialStock}
               onChange={(e) =>
                 editingMaterial
-                  ? setEditingMaterial({ ...editingMaterial, stock: parseInt(e.target.value) || 0 })
+                  ? setEditingMaterial({
+                      ...editingMaterial,
+                      stock: parseInt(e.target.value) || 0,
+                    })
                   : setNewMaterialStock(parseInt(e.target.value) || 0)
               }
             />
@@ -176,6 +211,7 @@ const MaterialManagement = () => {
         )}
       </div>
 
+      {/* Tabla */}
       <h3 className="text-xl font-semibold text-gray-700 mb-4">Materiales Existentes</h3>
       <div className="overflow-x-auto">
         <table className="min-w-full bg-white border border-gray-200 rounded-lg shadow-sm">
