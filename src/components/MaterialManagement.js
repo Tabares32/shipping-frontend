@@ -1,6 +1,26 @@
 import React, { useState, useEffect } from 'react';
-import { getStorage, setStorage, syncToBackend } from '../utils/storage';
-import { mockMaterials } from '../mock/materials';
+
+// API helpers
+const fetchMaterials = async () => {
+  try {
+    const res = await fetch('/api/materials');
+    return res.ok ? await res.json() : [];
+  } catch {
+    return [];
+  }
+};
+
+const saveMaterials = async (data) => {
+  try {
+    await fetch('/api/materials', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+  } catch {
+    console.error('Error al guardar materiales');
+  }
+};
 
 const MaterialManagement = () => {
   const [materials, setMaterials] = useState([]);
@@ -11,29 +31,41 @@ const MaterialManagement = () => {
   const [editingMaterial, setEditingMaterial] = useState(null);
 
   useEffect(() => {
-    const storedMaterials = getStorage('materialsBOM') || mockMaterials;
-    setMaterials(storedMaterials);
+    const load = async () => {
+      const mats = await fetchMaterials();
+      setMaterials(Array.isArray(mats) ? mats : []);
+    };
+    load();
   }, []);
+
+  const showMessage = (text, timeout = 3000) => {
+    setMessage(text);
+    if (timeout > 0) setTimeout(() => setMessage(''), timeout);
+  };
 
   const handleAddMaterial = async () => {
     if (!newMaterialName || !newMaterialId || newMaterialStock < 0) {
-      setMessage('¡Todos los campos son obligatorios y el stock debe ser >= 0!');
+      showMessage('¡Todos los campos son obligatorios y el stock debe ser >= 0!');
       return;
     }
     if (materials.some(m => m.materialId === newMaterialId)) {
-      setMessage('¡Ese ID de material ya existe! Elige otro, por favor.');
+      showMessage('¡Ese ID de material ya existe! Elige otro, por favor.');
       return;
     }
 
-    const newMaterial = { materialId: newMaterialId, name: newMaterialName, stock: newMaterialStock };
-    const updatedMaterials = [...materials, newMaterial];
-    setStorage('materialsBOM', updatedMaterials);
-    setMaterials(updatedMaterials);
-    await syncToBackend();
-    setMessage('¡Material agregado con éxito!');
+    const newMaterial = {
+      materialId: newMaterialId,
+      name: newMaterialName,
+      stock: newMaterialStock,
+    };
+
+    const updated = [...materials, newMaterial];
+    await saveMaterials(updated);
+    setMaterials(updated);
     setNewMaterialName('');
     setNewMaterialId('');
     setNewMaterialStock(0);
+    showMessage('¡Material agregado con éxito!');
   };
 
   const handleEditClick = (material) => {
@@ -43,18 +75,18 @@ const MaterialManagement = () => {
 
   const handleSaveEdit = async () => {
     if (!editingMaterial.name || !editingMaterial.materialId || editingMaterial.stock < 0) {
-      setMessage('¡Todos los campos son obligatorios y el stock debe ser >= 0!');
+      showMessage('¡Todos los campos son obligatorios y el stock debe ser >= 0!');
       return;
     }
 
-    const updatedMaterials = materials.map(material =>
-      material.materialId === editingMaterial.materialId ? editingMaterial : material
+    const updated = materials.map(m =>
+      m.materialId === editingMaterial.materialId ? editingMaterial : m
     );
-    setStorage('materialsBOM', updatedMaterials);
-    setMaterials(updatedMaterials);
-    await syncToBackend();
-    setMessage('¡Material actualizado con éxito!');
+
+    await saveMaterials(updated);
+    setMaterials(updated);
     setEditingMaterial(null);
+    showMessage('¡Material actualizado con éxito!');
   };
 
   const handleCancelEdit = () => {
@@ -64,11 +96,10 @@ const MaterialManagement = () => {
 
   const handleRemoveMaterial = async (materialId) => {
     if (window.confirm('¿Estás seguro de que quieres eliminar este material?')) {
-      const updatedMaterials = materials.filter(material => material.materialId !== materialId);
-      setStorage('materialsBOM', updatedMaterials);
-      setMaterials(updatedMaterials);
-      await syncToBackend();
-      setMessage('¡Material eliminado con éxito!');
+      const updated = materials.filter(m => m.materialId !== materialId);
+      await saveMaterials(updated);
+      setMaterials(updated);
+      showMessage('¡Material eliminado con éxito!');
     }
   };
 
@@ -81,12 +112,13 @@ const MaterialManagement = () => {
         <h3 className="text-xl font-semibold text-gray-700 mb-4">
           {editingMaterial ? 'Editar Material' : 'Agregar Nuevo Material'}
         </h3>
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
           <div>
             <label className="block text-gray-700 text-sm font-semibold mb-2">ID Material</label>
             <input
               type="text"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black transition"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg"
               value={editingMaterial ? editingMaterial.materialId : newMaterialId}
               onChange={(e) =>
                 editingMaterial
@@ -96,11 +128,12 @@ const MaterialManagement = () => {
               disabled={!!editingMaterial}
             />
           </div>
+
           <div>
             <label className="block text-gray-700 text-sm font-semibold mb-2">Nombre</label>
             <input
               type="text"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black transition"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg"
               value={editingMaterial ? editingMaterial.name : newMaterialName}
               onChange={(e) =>
                 editingMaterial
@@ -109,32 +142,34 @@ const MaterialManagement = () => {
               }
             />
           </div>
+
           <div>
             <label className="block text-gray-700 text-sm font-semibold mb-2">Stock</label>
             <input
               type="number"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black transition"
+              min="0"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg"
               value={editingMaterial ? editingMaterial.stock : newMaterialStock}
               onChange={(e) =>
                 editingMaterial
                   ? setEditingMaterial({ ...editingMaterial, stock: parseInt(e.target.value) || 0 })
                   : setNewMaterialStock(parseInt(e.target.value) || 0)
               }
-              min="0"
             />
           </div>
         </div>
+
         {editingMaterial ? (
           <div className="flex justify-end space-x-4">
             <button
               onClick={handleSaveEdit}
-              className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors duration-300 text-md font-semibold shadow-md"
+              className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
             >
               Guardar Cambios
             </button>
             <button
               onClick={handleCancelEdit}
-              className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition-colors duration-300 text-md font-semibold shadow-md"
+              className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600"
             >
               Cancelar
             </button>
@@ -142,7 +177,7 @@ const MaterialManagement = () => {
         ) : (
           <button
             onClick={handleAddMaterial}
-            className="w-full bg-black text-white py-2 rounded-lg hover:bg-gray-800 transition-colors duration-300 text-md font-semibold shadow-md"
+            className="w-full bg-black text-white py-2 rounded-lg hover:bg-gray-800"
           >
             Agregar Material
           </button>
@@ -154,29 +189,29 @@ const MaterialManagement = () => {
         <table className="min-w-full bg-white border border-gray-200 rounded-lg shadow-sm">
           <thead className="bg-gray-100">
             <tr>
-              <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider border-b">ID Material</th>
-              <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider border-b">Nombre</th>
-              <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider border-b">Stock</th>
-              <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider border-b">Acciones</th>
+              <th className="py-3 px-4 text-left">ID Material</th>
+              <th className="py-3 px-4 text-left">Nombre</th>
+              <th className="py-3 px-4 text-left">Stock</th>
+              <th className="py-3 px-4 text-left">Acciones</th>
             </tr>
           </thead>
           <tbody>
             {materials.length > 0 ? (
               materials.map((material) => (
-                <tr key={material.materialId} className="border-b border-gray-200 hover:bg-gray-50 transition-colors duration-150">
-                  <td className="py-3 px-4 text-gray-800">{material.materialId}</td>
-                  <td className="py-3 px-4 text-gray-800">{material.name}</td>
-                  <td className="py-3 px-4 text-gray-800">{material.stock}</td>
+                <tr key={material.materialId} className="border-b hover:bg-gray-50">
+                  <td className="py-3 px-4">{material.materialId}</td>
+                  <td className="py-3 px-4">{material.name}</td>
+                  <td className="py-3 px-4">{material.stock}</td>
                   <td className="py-3 px-4">
                     <button
                       onClick={() => handleEditClick(material)}
-                      className="bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700 transition-colors duration-300 text-sm mr-2"
+                      className="bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700 mr-2"
                     >
                       Editar
                     </button>
                     <button
                       onClick={() => handleRemoveMaterial(material.materialId)}
-                      className="bg-red-500 text-white px-3 py-1 rounded-md hover:bg-red-600 transition-colors duration-300 text-sm"
+                      className="bg-red-500 text-white px-3 py-1 rounded-md hover:bg-red-600"
                     >
                       Eliminar
                     </button>
@@ -185,7 +220,9 @@ const MaterialManagement = () => {
               ))
             ) : (
               <tr>
-                <td colSpan="4" className="py-4 text-center text-gray-500">No hay materiales registrados.</td>
+                <td colSpan="4" className="py-4 text-center text-gray-500">
+                  No hay materiales registrados.
+                </td>
               </tr>
             )}
           </tbody>
