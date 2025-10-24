@@ -1,4 +1,4 @@
-// src/App.js
+// ✅ src/App.js
 import React, { useState, useEffect, useRef } from "react";
 import AuthLogin from "./components/AuthLogin";
 import DashboardHeader from "./components/DashboardHeader";
@@ -8,7 +8,7 @@ import {
   getStorage,
   setStorage,
   syncStorageFromBackend,
-  initializeSync,
+  initStorageSync, // ✅ nombre corregido
 } from "./utils/storage";
 
 const App = () => {
@@ -21,10 +21,13 @@ const App = () => {
 
   // 🚀 Sincronización inicial global al cargar la app
   useEffect(() => {
+    const token = localStorage.getItem("authToken");
+    if (!token) return;
+
     (async () => {
       try {
         setIsSyncing(true);
-        await initializeSync();
+        await initStorageSync(token); // ✅ nombre corregido
         console.log("✅ Sincronización inicial completada");
       } catch (error) {
         console.warn("⚠️ Error en sincronización inicial:", error);
