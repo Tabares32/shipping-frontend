@@ -1,5 +1,22 @@
 import React, { useState, useEffect } from "react";
 import { setStorage, getStorage } from "../utils/storage";
+import { initStorageSync } from "./storage";
+
+async function handleLogin() {
+  const res = await fetch(`${API_URL}/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password }),
+  });
+
+  if (!res.ok) throw new Error("Credenciales inválidas");
+
+  const data = await res.json();
+  localStorage.setItem("authToken", data.token);
+  await initStorageSync(data.token); // 🔹 Arranca sincronización global
+
+  navigate("/dashboard"); // o tu ruta principal
+}
 
 const AuthLogin = ({ onLoginSuccess }) => {
   const [username, setUsername] = useState("");
