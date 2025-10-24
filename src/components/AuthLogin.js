@@ -1,4 +1,4 @@
-// ✅ src/components/AuthLogin.js
+// src/components/AuthLogin.js
 import React, { useState } from "react";
 
 const BACKEND =
@@ -30,7 +30,6 @@ const AuthLogin = ({ onLoginSuccess }) => {
         return;
       }
 
-      // Guardar token y usuario
       localStorage.setItem("authToken", data.token);
       localStorage.setItem(
         "currentUser",

@@ -1,9 +1,13 @@
 // ✅ src/App.js
 import React, { useState, useEffect, useRef } from "react";
 import AuthLogin from "./components/AuthLogin";
+// src/App.js
+import React, { useState, useEffect, useRef } from "react";
+import AuthLogin from "./components/AuthLogin";
 import DashboardHeader from "./components/DashboardHeader";
 import DashboardSidebar from "./components/DashboardSidebar";
 import PublicDashboard from "./components/PublicDashboard";
+import UserManagement from "./components/UserManagement";
 import {
   getStorage,
   setStorage,
@@ -17,9 +21,9 @@ const App = () => {
   const [currentPage, setCurrentPage] = useState("fedexShippingCapture");
   const activityTimer = useRef(null);
   const manualLogoutFlag = useRef(false);
-  const INACTIVITY_TIMEOUT = 10 * 60 * 1000; // 10 minutos
+  const INACTIVITY_TIMEOUT = 10 * 60 * 1000;
 
-  // 🔐 Cargar sesión de usuario desde localStorage
+  // Cargar sesión
   useEffect(() => {
     const token = localStorage.getItem("authToken");
     const user = localStorage.getItem("currentUser");
@@ -32,7 +36,7 @@ const App = () => {
     }
   }, []);
 
-  // 🚀 Sincronización inicial global al cargar la app (solo si hay sesión)
+  // Sincronización inicial
   useEffect(() => {
     if (!currentUser) return;
     const token = localStorage.getItem("authToken");
@@ -51,7 +55,7 @@ const App = () => {
     })();
   }, [currentUser]);
 
-  // 🕓 Control de inactividad
+  // Inactividad
   const resetActivityTimer = () => {
     clearTimeout(activityTimer.current);
     activityTimer.current = setTimeout(() => performLogout(false), INACTIVITY_TIMEOUT);
@@ -72,7 +76,6 @@ const App = () => {
     performLogout(true);
   };
 
-  // 🎯 Detectar actividad del usuario
   useEffect(() => {
     if (currentUser) {
       resetActivityTimer();
@@ -84,7 +87,6 @@ const App = () => {
     }
   }, [currentUser]);
 
-  // 🔄 Sincronización tras login
   const handleLoginSuccess = async (user) => {
     setCurrentUser(user);
     setCurrentPage("fedexShippingCapture");
@@ -101,23 +103,24 @@ const App = () => {
     }
   };
 
-  // 🧭 Navegación
   const handleNavigate = (page) => {
     setCurrentPage(page);
     resetActivityTimer();
   };
 
   const handleNavigateToUserManagement = () => {
-    setCurrentPage("userManagement");
-    resetActivityTimer();
+    if (currentUser?.role === "admin") {
+      setCurrentPage("userManagement");
+      resetActivityTimer();
+    } else {
+      alert("Acceso denegado: solo administradores.");
+    }
   };
 
-  // 🔐 Si no hay sesión, mostrar login
   if (!currentUser) {
     return <AuthLogin onLoginSuccess={handleLoginSuccess} />;
   }
 
-  // ⏳ Si está sincronizando, mostrar overlay de carga
   if (isSyncing) {
     return (
       <div className="flex items-center justify-center h-screen bg-gray-100">
@@ -131,7 +134,6 @@ const App = () => {
     );
   }
 
-  // 🧭 Vista principal del dashboard
   return (
     <div className="flex flex-col h-screen bg-gray-100">
       <DashboardHeader
@@ -145,7 +147,11 @@ const App = () => {
           onNavigate={handleNavigate}
           currentUser={currentUser}
         />
-        <PublicDashboard currentPage={currentPage} currentUser={currentUser} />
+        {currentPage === "userManagement" ? (
+          <UserManagement />
+        ) : (
+          <PublicDashboard currentPage={currentPage} currentUser={currentUser} />
+        )}
       </div>
     </div>
   );

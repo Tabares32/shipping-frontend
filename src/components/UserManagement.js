@@ -18,6 +18,15 @@ const UserManagement = () => {
   const token = localStorage.getItem("authToken");
   const currentUser = JSON.parse(localStorage.getItem("currentUser") || "{}");
 
+  // 🚫 Protección: solo admin puede acceder
+  if (currentUser?.role !== "admin") {
+    return (
+      <div className="p-8 text-red-500 font-semibold">
+        Acceso denegado: solo administradores pueden gestionar usuarios.
+      </div>
+    );
+  }
+
   const fetchUsers = async () => {
     if (!token) return;
     setLoading(true);
