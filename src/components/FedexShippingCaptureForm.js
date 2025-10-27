@@ -18,6 +18,7 @@ const FedexShippingCaptureForm = () => {
   const [showFGDropdown, setShowFGDropdown] = useState(false);
 
   const [selectedObservation, setSelectedObservation] = useState('');
+  const [trackingNumber, setTrackingNumber] = useState('');
   const [lineNumber, setLineNumber] = useState(1);
   const [entries, setEntries] = useState([]);
   const [message, setMessage] = useState('');
@@ -89,15 +90,18 @@ const FedexShippingCaptureForm = () => {
     finishedGood: selectedFinishedGood ? (selectedFinishedGood.finishedGood || selectedFinishedGood.name) : '',
     finishedGoodObject: selectedFinishedGood || null,
     observation: selectedObservation || '',
-    trackingNumber: '',
+    trackingNumber: trackingNumber || '',
     shippingDate: shipmentDate || '',
     captureTime: new Date().toISOString(),
   });
 
   const persistEntries = async (newEntries) => {
     setStorage('entries', newEntries);
-    await syncToBackend();
-    await syncToBackend();
+    try {
+      await syncToBackend();
+    } catch (err) {
+      console.warn('Error sincronizando entries:', err);
+    }
     setEntries(newEntries);
   };
 
@@ -127,8 +131,11 @@ const FedexShippingCaptureForm = () => {
 
     setStorage('materialsBOM', updatedMaterials);
     setStorage('materials', updatedMaterials);
-    await syncToBackend();
-    await syncToBackend();
+    try {
+      await syncToBackend();
+    } catch (err) {
+      console.warn('Error sincronizando materials after update:', err);
+    }
     setAvailableMaterials(updatedMaterials);
   };
 
@@ -152,6 +159,7 @@ const FedexShippingCaptureForm = () => {
     setSearchTermFG('');
     setSelectedObservation('');
     setShipmentDate('');
+    setTrackingNumber('');
     showMessage(`Línea ${newEntry.lineNumber} guardada con éxito.`, 3000);
   };
 
@@ -169,6 +177,23 @@ const FedexShippingCaptureForm = () => {
     await persistEntries(reindexed);
     setLineNumber(reindexed.length + 1);
     showMessage(`Línea ${lineToRemove} eliminada.`, 3000);
+  };
+
+  // helper to resolve observation display text
+  const getObservationText = (obsVal) => {
+    if (!obsVal) return '';
+    if (!Array.isArray(observationsList) || observationsList.length === 0) return obsVal;
+    // support observation as primitive or object; try matching common keys
+    const found = observationsList.find(o => {
+      if (o == null) return false;
+      if (typeof o === 'string') return o === obsVal;
+      const candidates = [o.id, o.value, o.text, o.label];
+      return candidates.some(c => c !== undefined && String(c) === String(obsVal));
+    });
+    if (found) {
+      return typeof found === 'string' ? found : (found.text || found.label || found.value || found.id || obsVal);
+    }
+    return obsVal;
   };
 
   return (
@@ -245,15 +270,27 @@ const FedexShippingCaptureForm = () => {
         >
           <option value="">Seleccione una opción</option>
           {observationsList.map((obs, idx) => {
-            const val = obs && typeof obs === 'object' ? (obs.text || obs.value || '') : obs;
+            const val = obs && typeof obs === 'object' ? (obs.value || obs.id || obs.text || obs.label || '') : obs;
+            const label = obs && typeof obs === 'object' ? (obs.text || obs.label || obs.value || obs.id || '') : obs;
             const key = obs && typeof obs === 'object' ? (obs.id || idx) : idx;
             return (
               <option key={key} value={val}>
-                {val}
+                {label}
               </option>
             );
           })}
         </select>
+      </div>
+
+      <div className="mb-4">
+        <label className="block text-sm font-semibold mb-1">Tracking Number</label>
+        <input
+          type="text"
+          value={trackingNumber}
+          onChange={(e) => setTrackingNumber(e.target.value)}
+          placeholder="Ej. 123456789012"
+          className="w-full px-3 py-2 border rounded"
+        />
       </div>
 
       <div className="mb-4">
@@ -290,8 +327,8 @@ const FedexShippingCaptureForm = () => {
                   <td className="py-2 px-3 border-b">{entry.order}</td>
                   <td className="py-2 px-3 border-b">{entry.lineNumber}</td>
                   <td className="py-2 px-3 border-b">{entry.finishedGood}</td>
-                  <td className="py-2 px-3 border-b">{entry.observation}</td>
-                  <td className="py-2 px-3 border-b">{entry.trackingNumber}</td>
+                  <td className="py-2 px-3 border-b">{getObservationText(entry.observation)}</td>
+                  <td className="py-2 px-3 border-b">{entry.trackingNumber || '—'}</td>
                   <td className="py-2 px-3 border-b">
                     <button onClick={() => handleRemoveEntry(entry.lineNumber)} className="text-sm px-2 py-1 bg-red-500 text-white rounded">
                       Eliminar
