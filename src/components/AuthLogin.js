@@ -105,12 +105,21 @@ const AuthLogin = ({ onLoginSuccess }) => {
 
   const handleLogoutLocal = () => {
     localStorage.removeItem("authToken");
-    localStorage.removeItem("currentUser");
-    clearSyncState(); // limpia la marca de sincronización
+    // no removemos currentUser aquí por petición del flujo
+    clearSyncState();
     setSessionInfo(null);
     setUsername("");
     setPassword("");
     setError("");
+    // opcional: si quieres forzar recarga para reflejar estado visual
+    // window.location.reload();
+  };
+
+  const handleRemoveSavedUser = () => {
+    localStorage.removeItem("currentUser");
+    clearSyncState();
+    alert("Usuario guardado eliminado.");
+    window.location.reload();
   };
 
   const existingToken = !!localStorage.getItem("authToken");
@@ -216,6 +225,9 @@ const AuthLogin = ({ onLoginSuccess }) => {
                 <button onClick={handleLogoutLocal} className="px-3 py-1 bg-red-500 text-white rounded text-sm">
                   Cerrar sesión local
                 </button>
+                <button onClick={handleRemoveSavedUser} className="px-3 py-1 bg-yellow-500 text-white rounded text-sm">
+                  Eliminar usuario guardado
+                </button>
               </div>
             </div>
           ) : existingToken || savedUser ? (
@@ -224,6 +236,7 @@ const AuthLogin = ({ onLoginSuccess }) => {
               <div className="mt-2 flex gap-2">
                 <button onClick={handleVerifyToken} className="px-3 py-1 bg-blue-600 text-white rounded text-sm">Verificar token</button>
                 <button onClick={handleLogoutLocal} className="px-3 py-1 bg-red-500 text-white rounded text-sm">Cerrar sesión local</button>
+                <button onClick={handleRemoveSavedUser} className="px-3 py-1 bg-yellow-500 text-white rounded text-sm">Eliminar usuario guardado</button>
               </div>
             </div>
           ) : (

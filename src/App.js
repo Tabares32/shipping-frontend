@@ -1,4 +1,3 @@
-// src/App.js
 import React, { useState, useEffect, useRef } from "react";
 import AuthLogin from "./components/AuthLogin";
 import DashboardHeader from "./components/DashboardHeader";
@@ -9,6 +8,7 @@ import {
   initStorageSync,
   syncFromBackend,
   setStorage,
+  clearSyncState,
 } from "./utils/storage";
 
 const App = () => {
@@ -24,8 +24,8 @@ const App = () => {
     const token = localStorage.getItem("authToken");
     const user = localStorage.getItem("currentUser");
     if (token && user) {
-      // Puedes validar el token con /api/auth/me si quieres
-      setCurrentUser(null); // ⚠️ No restaurar sesión automáticamente
+      // No restaurar sesión automáticamente
+      setCurrentUser(null);
     }
   }, []);
 
@@ -57,12 +57,18 @@ const App = () => {
   };
 
   const performLogout = (isManual = false) => {
-    setStorage("currentUser", null);
+    // eliminar únicamente el token y la marca de sincronización
+    localStorage.removeItem("authToken");
+    clearSyncState();
+
+    // mantener currentUser en localStorage; solo limpiamos el estado en memoria
     setCurrentUser(null);
     clearTimeout(activityTimer.current);
+
     if (!isManual) {
       alert("Sesión cerrada por inactividad o cierre de navegador.");
     }
+
     manualLogoutFlag.current = false;
   };
 
@@ -122,9 +128,7 @@ const App = () => {
       <div className="flex items-center justify-center h-screen bg-gray-100">
         <div className="text-center">
           <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-black mx-auto mb-4"></div>
-          <p className="text-gray-700 text-lg font-semibold">
-            Sincronizando datos...
-          </p>
+          <p className="text-gray-700 text-lg font-semibold">Sincronizando datos...</p>
         </div>
       </div>
     );
@@ -146,10 +150,7 @@ const App = () => {
         {currentPage === "userManagement" ? (
           <UserManagement />
         ) : (
-          <PublicDashboard
-            currentPage={currentPage}
-            currentUser={currentUser}
-          />
+          <PublicDashboard currentPage={currentPage} currentUser={currentUser} />
         )}
       </div>
     </div>
