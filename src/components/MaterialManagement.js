@@ -11,29 +11,48 @@ const MaterialManagement = () => {
   const [editingMaterial, setEditingMaterial] = useState(null);
 
   useEffect(() => {
-    const storedMaterials =
-  getStorage('materialsBOM') ||
-  getStorage('materials') ||
-  mockMaterials;
+    const stored =
+      getStorage('materialsBOM') ||
+      getStorage('materials') ||
+      mockMaterials ||
+      [];
+    setMaterials(Array.isArray(stored) ? stored : []);
   }, []);
+
+  const showMessage = (txt, timeout = 3000) => {
+    setMessage(txt);
+    if (timeout > 0) setTimeout(() => setMessage(''), timeout);
+  };
 
   const handleAddMaterial = async () => {
     if (!newMaterialName || !newMaterialId || newMaterialStock < 0) {
-      setMessage('¡Todos los campos son obligatorios y el stock debe ser >= 0!');
+      showMessage('¡Todos los campos son obligatorios y el stock debe ser >= 0!');
       return;
     }
     if (materials.some(m => m.materialId === newMaterialId)) {
-      setMessage('¡Ese ID de material ya existe! Elige otro, por favor.');
+      showMessage('¡Ese ID de material ya existe! Elige otro, por favor.');
       return;
     }
 
-    const newMaterial = { materialId: newMaterialId, name: newMaterialName, stock: newMaterialStock };
+    const newMaterial = {
+      materialId: newMaterialId,
+      name: newMaterialName,
+      stock: newMaterialStock,
+    };
     const updatedMaterials = [...materials, newMaterial];
+
     setStorage('materialsBOM', updatedMaterials);
     setStorage('materials', updatedMaterials);
     setMaterials(updatedMaterials);
-    await syncToBackend();
-    setMessage('¡Material agregado con éxito!');
+
+    try {
+      await syncToBackend();
+      showMessage('¡Material agregado con éxito!');
+    } catch (err) {
+      console.warn('Error sincronizando materiales:', err);
+      showMessage('Guardado localmente, pero no se pudo sincronizar al backend.');
+    }
+
     setNewMaterialName('');
     setNewMaterialId('');
     setNewMaterialStock(0);
@@ -46,17 +65,26 @@ const MaterialManagement = () => {
 
   const handleSaveEdit = async () => {
     if (!editingMaterial.name || !editingMaterial.materialId || editingMaterial.stock < 0) {
-      setMessage('¡Todos los campos son obligatorios y el stock debe ser >= 0!');
+      showMessage('¡Todos los campos son obligatorios y el stock debe ser >= 0!');
       return;
     }
 
     const updatedMaterials = materials.map(material =>
       material.materialId === editingMaterial.materialId ? editingMaterial : material
     );
+
     setStorage('materialsBOM', updatedMaterials);
+    setStorage('materials', updatedMaterials);
     setMaterials(updatedMaterials);
-    await syncToBackend();
-    setMessage('¡Material actualizado con éxito!');
+
+    try {
+      await syncToBackend();
+      showMessage('¡Material actualizado con éxito!');
+    } catch (err) {
+      console.warn('Error sincronizando materiales:', err);
+      showMessage('Actualizado localmente, pero no se pudo sincronizar al backend.');
+    }
+
     setEditingMaterial(null);
   };
 
@@ -66,12 +94,20 @@ const MaterialManagement = () => {
   };
 
   const handleRemoveMaterial = async (materialId) => {
-    if (window.confirm('¿Estás seguro de que quieres eliminar este material?')) {
-      const updatedMaterials = materials.filter(material => material.materialId !== materialId);
-      setStorage('materialsBOM', updatedMaterials);
-      setMaterials(updatedMaterials);
+    if (!window.confirm('¿Estás seguro de que quieres eliminar este material?')) return;
+
+    const updatedMaterials = materials.filter(material => material.materialId !== materialId);
+
+    setStorage('materialsBOM', updatedMaterials);
+    setStorage('materials', updatedMaterials);
+    setMaterials(updatedMaterials);
+
+    try {
       await syncToBackend();
-      setMessage('¡Material eliminado con éxito!');
+      showMessage('¡Material eliminado con éxito!');
+    } catch (err) {
+      console.warn('Error sincronizando eliminación:', err);
+      showMessage('Eliminado localmente, pero no se pudo sincronizar al backend.');
     }
   };
 
@@ -127,6 +163,7 @@ const MaterialManagement = () => {
             />
           </div>
         </div>
+
         {editingMaterial ? (
           <div className="flex justify-end space-x-4">
             <button
