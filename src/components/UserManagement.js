@@ -90,9 +90,7 @@ const UserManagement = () => {
       }
 
       const updatedUsers = editingId
-        ? users.map((u) =>
-            u.id === editingId ? { ...u, ...payload } : u
-          )
+        ? users.map((u) => (u.id === editingId ? { ...u, ...payload } : u))
         : [...users, data.user];
 
       setUsers(updatedUsers);
@@ -110,6 +108,35 @@ const UserManagement = () => {
       setEditingId(null);
     } catch (err) {
       console.error("Error guardando usuario:", err);
+      setError("Error de conexión con el servidor");
+    }
+  };
+
+  const handleDeleteUser = async (id) => {
+    if (!window.confirm("¿Eliminar este usuario permanentemente?")) return;
+
+    try {
+      const res = await fetch(`${BACKEND}/api/users/${id}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(data.detail || "No se pudo eliminar el usuario");
+        return;
+      }
+
+      const updatedUsers = users.filter((u) => u.id !== id);
+      setUsers(updatedUsers);
+      setStorage("users", updatedUsers);
+      await syncToBackend();
+
+      setSuccess("Usuario eliminado correctamente ✅");
+    } catch (err) {
+      console.error("Error eliminando usuario:", err);
       setError("Error de conexión con el servidor");
     }
   };
@@ -195,12 +222,20 @@ const UserManagement = () => {
                     <td className="p-3">{u.username}</td>
                     <td className="p-3 capitalize">{u.role}</td>
                     <td className="p-3">
-                      <button
-                        onClick={() => startEdit(u)}
-                        className="text-blue-600 hover:underline"
-                      >
-                        Editar
-                      </button>
+                      <div className="flex gap-3">
+                        <button
+                          onClick={() => startEdit(u)}
+                          className="text-blue-600 hover:underline"
+                        >
+                          Editar
+                        </button>
+                        <button
+                          onClick={() => handleDeleteUser(u.id)}
+                          className="text-red-600 hover:underline"
+                        >
+                          Eliminar
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))

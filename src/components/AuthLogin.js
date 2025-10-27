@@ -14,11 +14,6 @@ const AuthLogin = ({ onLoginSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [sessionInfo, setSessionInfo] = useState(null);
 
-  const resetMessages = () => {
-    setError("");
-    setSessionInfo(null);
-  };
-
   const formatExpiry = (epochSeconds) => {
     try {
       return new Date(epochSeconds * 1000).toLocaleString();
@@ -105,21 +100,11 @@ const AuthLogin = ({ onLoginSuccess }) => {
 
   const handleLogoutLocal = () => {
     localStorage.removeItem("authToken");
-    // no removemos currentUser aquí por petición del flujo
     clearSyncState();
     setSessionInfo(null);
     setUsername("");
     setPassword("");
     setError("");
-    // opcional: si quieres forzar recarga para reflejar estado visual
-    // window.location.reload();
-  };
-
-  const handleRemoveSavedUser = () => {
-    localStorage.removeItem("currentUser");
-    clearSyncState();
-    alert("Usuario guardado eliminado.");
-    window.location.reload();
   };
 
   const existingToken = !!localStorage.getItem("authToken");
@@ -192,42 +177,16 @@ const AuthLogin = ({ onLoginSuccess }) => {
 
           {sessionInfo ? (
             <div className="text-sm text-gray-700 space-y-1">
-              <div>
-                <strong className="text-gray-900">Usuario:</strong> {sessionInfo.username}
-              </div>
-              <div>
-                <strong className="text-gray-900">Rol:</strong> {sessionInfo.role}
-              </div>
-              <div>
-                <strong className="text-gray-900">Expira:</strong>{" "}
-                {sessionInfo.expiry ? formatExpiry(sessionInfo.expiry) : "Desconocido"}
-              </div>
-              <div>
-                <strong className="text-gray-900">Firma:</strong>{" "}
-                <span className="font-mono text-xs bg-gray-100 px-2 py-0.5 rounded">{sessionInfo.signature || "—"}</span>
-              </div>
-              <div>
-                <strong className="text-gray-900">IP:</strong>{" "}
-                <span className="text-sm text-gray-600">{sessionInfo.ip || "—"}</span>
-              </div>
-              <div>
-                <strong className="text-gray-900">Navegador:</strong>{" "}
-                <span className="text-sm text-gray-600">{sessionInfo.userAgent ? sessionInfo.userAgent.split(")")[0] + ")" : navigator.userAgent}</span>
-              </div>
+              <div><strong className="text-gray-900">Usuario:</strong> {sessionInfo.username}</div>
+              <div><strong className="text-gray-900">Rol:</strong> {sessionInfo.role}</div>
+              <div><strong className="text-gray-900">Expira:</strong> {sessionInfo.expiry ? formatExpiry(sessionInfo.expiry) : "Desconocido"}</div>
+              <div><strong className="text-gray-900">Firma:</strong> <span className="font-mono text-xs bg-gray-100 px-2 py-0.5 rounded">{sessionInfo.signature || "—"}</span></div>
+              <div><strong className="text-gray-900">IP:</strong> <span className="text-sm text-gray-600">{sessionInfo.ip || "—"}</span></div>
+              <div><strong className="text-gray-900">Navegador:</strong> <span className="text-sm text-gray-600">{sessionInfo.userAgent ? sessionInfo.userAgent.split(")")[0] + ")" : navigator.userAgent}</span></div>
 
               <div className="flex gap-3 mt-3">
-                <button
-                  onClick={handleVerifyToken}
-                  className="px-3 py-1 bg-blue-600 text-white rounded text-sm"
-                >
-                  Verificar token
-                </button>
-                <button onClick={handleLogoutLocal} className="px-3 py-1 bg-red-500 text-white rounded text-sm">
-                  Cerrar sesión local
-                </button>
-                <button onClick={handleRemoveSavedUser} className="px-3 py-1 bg-yellow-500 text-white rounded text-sm">
-                  Eliminar usuario guardado
-                </button>
+                <button onClick={handleVerifyToken} className="px-3 py-1 bg-blue-600 text-white rounded text-sm">Verificar token</button>
+                <button onClick={handleLogoutLocal} className="px-3 py-1 bg-red-500 text-white rounded text-sm">Cerrar sesión local</button>
               </div>
             </div>
           ) : existingToken || savedUser ? (
@@ -236,7 +195,6 @@ const AuthLogin = ({ onLoginSuccess }) => {
               <div className="mt-2 flex gap-2">
                 <button onClick={handleVerifyToken} className="px-3 py-1 bg-blue-600 text-white rounded text-sm">Verificar token</button>
                 <button onClick={handleLogoutLocal} className="px-3 py-1 bg-red-500 text-white rounded text-sm">Cerrar sesión local</button>
-                <button onClick={handleRemoveSavedUser} className="px-3 py-1 bg-yellow-500 text-white rounded text-sm">Eliminar usuario guardado</button>
               </div>
             </div>
           ) : (
