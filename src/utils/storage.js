@@ -58,12 +58,15 @@ export async function syncToBackend() {
   }
 
   const data = {};
-  for (const key of Object.keys(localStorage)) {
-    if (key === "authToken" || key === "currentUser") continue;
-    try {
-      data[key] = JSON.parse(localStorage.getItem(key));
-    } catch {
-      data[key] = localStorage.getItem(key);
+
+  // ✅ incluir claves específicas que quieres sincronizar
+  const keysToSync = ["users", "materialsBOM", "observations", "finishedGoods", "partNumbers"];
+  for (const key of keysToSync) {
+    const value = getStorage(key);
+    if (Array.isArray(value) && value.length > 0) {
+      data[key] = value;
+    } else {
+      console.warn(`⚠️ ${key} vacío o no válido, no se sincroniza`);
     }
   }
 
