@@ -8,15 +8,16 @@ const ObservationManagement = () => {
   const [message, setMessage] = useState('');
 
   useEffect(() => {
-    const storedObservations = getStorage('customObservations') || mockObservations;
-    setObservations(storedObservations);
+    const stored = getStorage('customObservations') || getStorage('observations') || mockObservations;
+    setObservations(Array.isArray(stored) ? stored : []);
   }, []);
 
   const handleAddObservation = () => {
     if (newObservation && !observations.includes(newObservation)) {
-      const updatedObservations = [...observations, newObservation];
-      setStorage('customObservations', updatedObservations);
-      setObservations(updatedObservations);
+      const updated = [...observations, newObservation];
+      setStorage('customObservations', updated);
+      setStorage('observations', updated); // ✅ sincroniza con FedexShippingCaptureForm
+      setObservations(updated);
       setNewObservation('');
       setMessage('¡Observación agregada con éxito!');
     } else if (observations.includes(newObservation)) {
@@ -27,9 +28,10 @@ const ObservationManagement = () => {
   };
 
   const handleRemoveObservation = (obsToRemove) => {
-    const updatedObservations = observations.filter(obs => obs !== obsToRemove);
-    setStorage('customObservations', updatedObservations);
-    setObservations(updatedObservations);
+    const updated = observations.filter(obs => obs !== obsToRemove);
+    setStorage('customObservations', updated);
+    setStorage('observations', updated); // ✅ sincroniza con FedexShippingCaptureForm
+    setObservations(updated);
     setMessage(`Observación "${obsToRemove}" eliminada.`);
   };
 

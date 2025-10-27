@@ -29,7 +29,10 @@ const FedexShippingCaptureForm = () => {
   useEffect(() => {
     const fgs = getStorage('customFinishedGoods') || mockFinishedGoods || [];
     const mats = getStorage('materialsBOM') || getStorage('materials') || [];
-    const obs = getStorage('observations') || mockObservations || [];
+    const obs =
+  getStorage('customObservations') ||
+  getStorage('observations') ||
+  mockObservations;
 
     setFinishedGoodsList(Array.isArray(fgs) ? fgs : []);
     setAvailableMaterials(Array.isArray(mats) ? mats : []);
