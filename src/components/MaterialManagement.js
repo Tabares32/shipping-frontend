@@ -11,8 +11,10 @@ const MaterialManagement = () => {
   const [editingMaterial, setEditingMaterial] = useState(null);
 
   useEffect(() => {
-    const storedMaterials = getStorage('materialsBOM') || mockMaterials;
-    setMaterials(storedMaterials);
+    const storedMaterials =
+  getStorage('materialsBOM') ||
+  getStorage('materials') ||
+  mockMaterials;
   }, []);
 
   const handleAddMaterial = async () => {
@@ -28,6 +30,7 @@ const MaterialManagement = () => {
     const newMaterial = { materialId: newMaterialId, name: newMaterialName, stock: newMaterialStock };
     const updatedMaterials = [...materials, newMaterial];
     setStorage('materialsBOM', updatedMaterials);
+    setStorage('materials', updatedMaterials);
     setMaterials(updatedMaterials);
     await syncToBackend();
     setMessage('¡Material agregado con éxito!');
