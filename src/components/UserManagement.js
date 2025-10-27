@@ -1,5 +1,5 @@
-// ✅ src/components/UserManagement.js
 import React, { useState, useEffect } from "react";
+import { getStorage, setStorage, syncToBackend } from "../utils/storage";
 
 const UserManagement = () => {
   const [users, setUsers] = useState([]);
@@ -18,7 +18,6 @@ const UserManagement = () => {
   const token = localStorage.getItem("authToken");
   const currentUser = JSON.parse(localStorage.getItem("currentUser") || "{}");
 
-  // 🚫 Protección: solo admin puede acceder
   if (currentUser?.role !== "admin") {
     return (
       <div className="p-8 text-red-500 font-semibold">
@@ -39,13 +38,15 @@ const UserManagement = () => {
       const data = await res.json();
       if (!res.ok || !Array.isArray(data)) {
         setError(data.detail || "No tienes permisos para ver usuarios.");
-        setUsers([]);
+        setUsers(getStorage("users") || []);
         return;
       }
       setUsers(data);
+      setStorage("users", data);
     } catch (err) {
       console.error("Error cargando usuarios:", err);
       setError("Error de conexión con el servidor");
+      setUsers(getStorage("users") || []);
     } finally {
       setLoading(false);
     }
@@ -88,6 +89,16 @@ const UserManagement = () => {
         return;
       }
 
+      const updatedUsers = editingId
+        ? users.map((u) =>
+            u.id === editingId ? { ...u, ...payload } : u
+          )
+        : [...users, data.user];
+
+      setUsers(updatedUsers);
+      setStorage("users", updatedUsers);
+      await syncToBackend();
+
       setSuccess(
         editingId
           ? `Usuario actualizado correctamente ✅`
@@ -97,7 +108,6 @@ const UserManagement = () => {
       setPassword("");
       setRole("user");
       setEditingId(null);
-      fetchUsers();
     } catch (err) {
       console.error("Error guardando usuario:", err);
       setError("Error de conexión con el servidor");
@@ -120,7 +130,6 @@ const UserManagement = () => {
       {error && <p className="text-red-500 mb-4">{error}</p>}
       {success && <p className="text-green-600 mb-4">{success}</p>}
 
-      {/* Formulario */}
       <div className="mb-6 bg-gray-50 p-6 rounded-xl shadow-md">
         <h3 className="text-xl font-semibold mb-3">
           {editingId ? "Editar usuario" : "Agregar usuario"}
@@ -162,7 +171,6 @@ const UserManagement = () => {
         </div>
       </div>
 
-      {/* Lista */}
       <div className="bg-white rounded-xl shadow-lg p-6">
         <h3 className="text-lg font-semibold mb-3 text-gray-700">
           Usuarios registrados
