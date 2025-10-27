@@ -26,7 +26,7 @@ export function setStorage(key, value) {
 
 /**
  * ✅ Cargar datos desde el backend (.json) y guardar en localStorage
- * ⚠️ Solo si el backend tiene datos válidos
+ * ⚠️ Conserva datos locales si el backend devuelve arrays vacíos
  */
 export async function syncFromBackend() {
   try {
@@ -34,10 +34,19 @@ export async function syncFromBackend() {
     const data = await res.json();
 
     Object.entries(data).forEach(([key, value]) => {
-      if (Array.isArray(value) && value.length > 0) {
-        setStorage(key, value);
+      if (Array.isArray(value)) {
+        if (value.length > 0) {
+          setStorage(key, value); // ✅ guardar si hay datos
+        } else {
+          const localCopy = getStorage(key);
+          if (Array.isArray(localCopy) && localCopy.length > 0) {
+            console.warn(`⚠️ ${key} vacío en backend, se conserva copia local`);
+          } else {
+            console.warn(`⚠️ ${key} vacío y sin copia local, se omite`);
+          }
+        }
       } else {
-        console.warn(`⚠️ Datos vacíos para ${key}, se conserva localStorage`);
+        console.warn(`⚠️ ${key} no es un array, se omite`);
       }
     });
 
