@@ -1,4 +1,6 @@
+// src/components/AuthLogin.js
 import React, { useState } from "react";
+import { clearSyncState } from "../utils/storage";
 
 const BACKEND =
   process.env.REACT_APP_BACKEND_URL ||
@@ -104,6 +106,7 @@ const AuthLogin = ({ onLoginSuccess }) => {
   const handleLogoutLocal = () => {
     localStorage.removeItem("authToken");
     localStorage.removeItem("currentUser");
+    clearSyncState(); // limpia la marca de sincronización
     setSessionInfo(null);
     setUsername("");
     setPassword("");

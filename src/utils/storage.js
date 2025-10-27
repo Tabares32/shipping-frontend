@@ -25,7 +25,8 @@ export function setStorage(key, value) {
 }
 
 /**
- * ✅ Cargar datos desde el backend (.json) y guardarlos en localStorage
+ * ✅ Cargar datos desde el backend (.json) y guardar en localStorage
+ * ⚠️ Solo si el backend tiene datos válidos
  */
 export async function syncFromBackend() {
   try {
@@ -33,7 +34,11 @@ export async function syncFromBackend() {
     const data = await res.json();
 
     Object.entries(data).forEach(([key, value]) => {
-      setStorage(key, value);
+      if (Array.isArray(value) && value.length > 0) {
+        setStorage(key, value);
+      } else {
+        console.warn(`⚠️ Datos vacíos para ${key}, se conserva localStorage`);
+      }
     });
 
     console.log("✅ Datos cargados desde el backend");
@@ -85,8 +90,20 @@ export async function syncToBackend() {
 
 /**
  * ✅ Inicializar sesión y sincronización al iniciar sesión
+ * ⚠️ Solo sincroniza si no se ha hecho ya en esta sesión
  */
 export async function initStorageSync(token) {
   localStorage.setItem("authToken", token);
-  await syncFromBackend();
+
+  if (!localStorage.getItem("syncDone")) {
+    await syncFromBackend();
+    localStorage.setItem("syncDone", "true");
+  }
+}
+
+/**
+ * ✅ Limpiar marca de sincronización al cerrar sesión
+ */
+export function clearSyncState() {
+  localStorage.removeItem("syncDone");
 }
