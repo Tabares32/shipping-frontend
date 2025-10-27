@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getStorage, setStorage } from '../utils/storage';
+import { getStorage, setStorage, syncToBackend } from '../utils/storage';
 import { mockFinishedGoods } from '../mock/finishedGoods';
 
 const FinishedGoodManagement = () => {
@@ -12,8 +12,14 @@ const FinishedGoodManagement = () => {
   const [availableMaterials, setAvailableMaterials] = useState([]);
 
   useEffect(() => {
-    const storedFinishedGoods = getStorage('customFinishedGoods') || mockFinishedGoods;
-    const storedMaterials = getStorage('materialsBOM') || [];
+    const storedFinishedGoods =
+      getStorage('customFinishedGoods') ||
+      getStorage('finishedGoods') ||
+      mockFinishedGoods;
+    const storedMaterials =
+      getStorage('materialsBOM') ||
+      getStorage('materials') ||
+      [];
     setFinishedGoods(Array.isArray(storedFinishedGoods) ? storedFinishedGoods : []);
     setAvailableMaterials(Array.isArray(storedMaterials) ? storedMaterials : []);
     initializeBOMSlots();
@@ -35,7 +41,10 @@ const FinishedGoodManagement = () => {
 
   const handleMaterialChangeInBOM = (index, field, value) => {
     const updated = newBOM.slice();
-    updated[index] = { ...updated[index], [field]: field === 'quantity' ? Number(value) : value };
+    updated[index] = {
+      ...updated[index],
+      [field]: field === 'quantity' ? Number(value) : value,
+    };
 
     if (field === 'materialId' && value) {
       const material =
@@ -47,7 +56,7 @@ const FinishedGoodManagement = () => {
     setNewBOM(updated);
   };
 
-  const handleAddFinishedGood = () => {
+  const handleAddFinishedGood = async () => {
     const filteredBOM = newBOM.filter((b) => b.materialId && Number(b.quantity) > 0);
 
     if (!newFinishedGoodName || !newType || !newVehicleType || filteredBOM.length === 0) {
@@ -59,24 +68,42 @@ const FinishedGoodManagement = () => {
       finishedGood: newFinishedGoodName,
       type: newType,
       vehicleType: newVehicleType,
-      bom: filteredBOM.map((b) => ({ materialId: b.materialId, name: b.name || '', quantity: Number(b.quantity) })),
+      bom: filteredBOM.map((b) => ({
+        materialId: b.materialId,
+        name: b.name || '',
+        quantity: Number(b.quantity),
+      })),
     };
 
     const updated = [...finishedGoods, newFG];
     setStorage('customFinishedGoods', updated);
+    setStorage('finishedGoods', updated);
     setFinishedGoods(updated);
+    try {
+      await syncToBackend();
+      showMessage('✅ ¡Finished Good agregado con éxito!');
+    } catch (err) {
+      console.warn('Error sincronizando Finished Goods:', err);
+      showMessage('⚠️ Guardado localmente, pero no se pudo sincronizar al backend.');
+    }
     setNewFinishedGoodName('');
     setNewType('');
     setNewVehicleType('');
     initializeBOMSlots();
-    showMessage('✅ ¡Finished Good agregado con éxito!');
   };
 
-  const handleRemoveFinishedGood = (fgToRemove) => {
+  const handleRemoveFinishedGood = async (fgToRemove) => {
     const updated = finishedGoods.filter((f) => f.finishedGood !== fgToRemove);
     setStorage('customFinishedGoods', updated);
+    setStorage('finishedGoods', updated);
     setFinishedGoods(updated);
-    showMessage(`🗑️ Finished Good "${fgToRemove}" eliminado.`);
+    try {
+      await syncToBackend();
+      showMessage(`🗑️ Finished Good "${fgToRemove}" eliminado.`);
+    } catch (err) {
+      console.warn('Error sincronizando eliminación de Finished Good:', err);
+      showMessage(`🗑️ Eliminado localmente, pero no se pudo sincronizar al backend.`);
+    }
   };
 
   return (
