@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getStorage, setStorage } from '../utils/storage';
+import { getStorage, setStorage, syncToBackend } from '../utils/storage';
 import { mockFinishedGoods } from '../mock/finishedGoods';
 
 const PartNumberManagement = () => {
@@ -9,40 +9,53 @@ const PartNumberManagement = () => {
   const [message, setMessage] = useState('');
 
   useEffect(() => {
-    const storedPartNumbers = getStorage('customFinishedGoods') || mockFinishedGoods;
+    const storedPartNumbers = getStorage('partNumbers') || mockFinishedGoods;
     setPartNumbers(storedPartNumbers);
   }, []);
 
-  const handleAddPartNumber = () => {
+  const handleAddPartNumber = async () => {
     if (newPartNumber && newFinishedGood) {
-      const updatedPartNumbers = [...partNumbers, { partNumber: newPartNumber, finishedGood: newFinishedGood }];
-      setStorage('customFinishedGoods', updatedPartNumbers);
+      const updatedPartNumbers = [
+        ...partNumbers,
+        { partNumber: newPartNumber, finishedGood: newFinishedGood },
+      ];
+      setStorage('partNumbers', updatedPartNumbers); // ✅ clave corregida
       setPartNumbers(updatedPartNumbers);
       setNewPartNumber('');
       setNewFinishedGood('');
       setMessage('¡Número de parte y Finished Good agregados!');
+      await syncToBackend(); // ✅ sincroniza inmediatamente
     } else {
       setMessage('Por favor, ingresa ambos campos.');
     }
   };
 
-  const handleRemovePartNumber = (partNumberToRemove) => {
-    const updatedPartNumbers = partNumbers.filter(item => item.partNumber !== partNumberToRemove);
-    setStorage('customFinishedGoods', updatedPartNumbers);
+  const handleRemovePartNumber = async (partNumberToRemove) => {
+    const updatedPartNumbers = partNumbers.filter(
+      (item) => item.partNumber !== partNumberToRemove
+    );
+    setStorage('partNumbers', updatedPartNumbers); // ✅ clave corregida
     setPartNumbers(updatedPartNumbers);
     setMessage(`Número de parte ${partNumberToRemove} eliminado.`);
+    await syncToBackend(); // ✅ sincroniza inmediatamente
   };
 
   return (
     <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-3xl mx-auto">
-      <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">Gestión de Part Numbers</h2>
+      <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">
+        Gestión de Part Numbers
+      </h2>
       {message && <p className="text-green-600 text-center mb-4">{message}</p>}
 
       <div className="mb-8 p-6 border border-gray-200 rounded-lg bg-gray-50">
-        <h3 className="text-xl font-semibold text-gray-700 mb-4">Agregar Nuevo Part Number</h3>
+        <h3 className="text-xl font-semibold text-gray-700 mb-4">
+          Agregar Nuevo Part Number
+        </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
           <div>
-            <label className="block text-gray-700 text-sm font-semibold mb-2">Part Number</label>
+            <label className="block text-gray-700 text-sm font-semibold mb-2">
+              Part Number
+            </label>
             <input
               type="text"
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black transition"
@@ -51,7 +64,9 @@ const PartNumberManagement = () => {
             />
           </div>
           <div>
-            <label className="block text-gray-700 text-sm font-semibold mb-2">Finished Good</label>
+            <label className="block text-gray-700 text-sm font-semibold mb-2">
+              Finished Good
+            </label>
             <input
               type="text"
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black transition"
@@ -68,20 +83,31 @@ const PartNumberManagement = () => {
         </button>
       </div>
 
-      <h3 className="text-xl font-semibold text-gray-700 mb-4">Part Numbers Existentes</h3>
+      <h3 className="text-xl font-semibold text-gray-700 mb-4">
+        Part Numbers Existentes
+      </h3>
       <div className="overflow-x-auto">
         <table className="min-w-full bg-white border border-gray-200 rounded-lg shadow-sm">
           <thead className="bg-gray-100">
             <tr>
-              <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider border-b">Part Number</th>
-              <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider border-b">Finished Good</th>
-              <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider border-b">Acciones</th>
+              <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider border-b">
+                Part Number
+              </th>
+              <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider border-b">
+                Finished Good
+              </th>
+              <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider border-b">
+                Acciones
+              </th>
             </tr>
           </thead>
           <tbody>
             {partNumbers.length > 0 ? (
               partNumbers.map((item) => (
-                <tr key={item.partNumber} className="border-b border-gray-200 hover:bg-gray-50 transition-colors duration-150">
+                <tr
+                  key={item.partNumber}
+                  className="border-b border-gray-200 hover:bg-gray-50 transition-colors duration-150"
+                >
                   <td className="py-3 px-4 text-gray-800">{item.partNumber}</td>
                   <td className="py-3 px-4 text-gray-800">{item.finishedGood}</td>
                   <td className="py-3 px-4">
@@ -96,7 +122,9 @@ const PartNumberManagement = () => {
               ))
             ) : (
               <tr>
-                <td colSpan="3" className="py-4 text-center text-gray-500">No hay Part Numbers registrados.</td>
+                <td colSpan="3" className="py-4 text-center text-gray-500">
+                  No hay Part Numbers registrados.
+                </td>
               </tr>
             )}
           </tbody>
