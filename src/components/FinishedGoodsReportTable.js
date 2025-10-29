@@ -9,7 +9,7 @@ const FinishedGoodsReportTable = () => {
   const [newShippingDate, setNewShippingDate] = useState('');
 
   useEffect(() => {
-    const records = getStorage('fedexShippingRecords') || []; // Usar fedexShippingRecords
+    const records = getStorage('fedexShippingRecords') || [];
     setInventoryRecords(records);
     generatePivotTable(records);
   }, []);
@@ -35,29 +35,26 @@ const FinishedGoodsReportTable = () => {
     setCutDate(newCutDate);
 
     const currentCuts = getStorage('inventoryCuts') || [];
-    
-    // Calcular cajas y líneas para el reporte del corte
+
     const totalBoxes = new Set(inventoryRecords.map(record => record.invoice)).size;
     const totalLines = inventoryRecords.length;
 
-    setStorage('inventoryCuts', [...currentCuts, { 
-      date: newCutDate, 
+    setStorage('inventoryCuts', [...currentCuts, {
+      date: newCutDate,
       data: pivotTable,
       shippingDate: newShippingDate,
-      totalBoxes: totalBoxes,
-      totalLines: totalLines,
-      efficiency: 'N/A' // Se puede calcular si se define un estándar
+      totalBoxes,
+      totalLines,
+      efficiency: 'N/A'
     }]);
-    
-    // Actualizar la fecha de envío para los registros actuales y luego limpiarlos
+
     const updatedRecords = inventoryRecords.map(record => ({
       ...record,
       shippingDate: newShippingDate,
     }));
-    setStorage('fedexShippingRecords', updatedRecords); // Guardar los registros con la fecha de envío
-    setStorage('lastShippingDateForCut', newShippingDate); // Guardar la fecha de envío para que se vea en captura
+    setStorage('fedexShippingRecords', updatedRecords);
+    setStorage('lastShippingDateForCut', newShippingDate);
 
-    // Limpiar registros de inventario para nuevas capturas después de guardar el corte
     setStorage('fedexShippingRecords', []);
     setInventoryRecords([]);
     setPivotTable({});
@@ -65,11 +62,25 @@ const FinishedGoodsReportTable = () => {
     setNewShippingDate('');
   };
 
+  const handleSendPivotEmail = () => {
+    if (!newShippingDate || Object.entries(pivotTable).length === 0) {
+      setMessage('Primero genera el corte con una fecha válida antes de enviar por correo.');
+      return;
+    }
+
+    const body = Object.entries(pivotTable)
+      .map(([fg, count]) => `Finished Good: ${fg}, Cantidad: ${count}`)
+      .join('\n');
+
+    const mailtoLink = `mailto:tu-correo@gmail.com?subject=Corte ${newShippingDate}&body=${encodeURIComponent(body)}`;
+    window.open(mailtoLink, '_blank');
+  };
+
   return (
     <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-4xl mx-auto">
       <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">Lista de Números de Parte</h2>
       {message && <p className="text-green-600 text-center mb-4">{message}</p>}
-      
+
       <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
         <div className="w-full md:w-1/2">
           <label className="block text-gray-700 text-sm font-semibold mb-2">Fecha de Envío para el Corte</label>
@@ -80,16 +91,26 @@ const FinishedGoodsReportTable = () => {
             onChange={(e) => setNewShippingDate(e.target.value)}
           />
         </div>
-        <button
-          onClick={handleGenerateCut}
-          className="w-full md:w-auto bg-purple-600 text-white px-5 py-2 rounded-lg hover:bg-purple-700 transition-colors duration-300 shadow-md mt-4 md:mt-0"
-        >
-          Generar Corte
-        </button>
+        <div className="flex flex-col gap-2 w-full md:w-auto">
+          <button
+            onClick={handleGenerateCut}
+            className="bg-purple-600 text-white px-5 py-2 rounded-lg hover:bg-purple-700 transition-colors duration-300 shadow-md"
+          >
+            Generar Corte
+          </button>
+          <button
+            onClick={handleSendPivotEmail}
+            className="bg-blue-600 text-white px-5 py-2 rounded-lg hover:bg-blue-700 transition-colors duration-300 shadow-md"
+          >
+            Enviar por correo
+          </button>
+        </div>
       </div>
 
       {cutDate && (
-        <p className="text-gray-700 text-center mb-4">Último corte generado: <span className="font-semibold">{cutDate}</span></p>
+        <p className="text-gray-700 text-center mb-4">
+          Último corte generado: <span className="font-semibold">{cutDate}</span>
+        </p>
       )}
 
       <div className="overflow-x-auto">
