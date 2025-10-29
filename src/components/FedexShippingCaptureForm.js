@@ -7,9 +7,10 @@ const FedexShippingCaptureForm = () => {
   const [finishedGoodsList, setFinishedGoodsList] = useState([]);
   const [observationsList, setObservationsList] = useState([]);
 
-  const [selectedInvoice, setSelectedInvoice] = useState('');
-  const [scanInvoice, setScanInvoice] = useState('');
-  const [shipmentDate, setShipmentDate] = useState(''); // Fecha de envío para corte (se mantiene hasta cambiar)
+  // Form state
+  const [selectedInvoice, setSelectedInvoice] = useState(''); // invoice (with U)
+  const [scanInvoice, setScanInvoice] = useState(''); // raw scan text input
+  const [shipmentDate, setShipmentDate] = useState(''); // fecha de envío (corte) en la parte superior
   const [comments, setComments] = useState('');
 
   const [searchTermFG, setSearchTermFG] = useState('');
@@ -19,7 +20,7 @@ const FedexShippingCaptureForm = () => {
   const [selectedObservation, setSelectedObservation] = useState('');
   const [trackingNumber, setTrackingNumber] = useState('');
   const [lineNumber, setLineNumber] = useState(1);
-  const [entries, setEntries] = useState([]); // ahora se guarda en 'fedexOrders'
+  const [entries, setEntries] = useState([]); // guarda en 'fedexOrders'
   const [message, setMessage] = useState('');
 
   const fgInputRef = useRef(null);
@@ -62,10 +63,23 @@ const FedexShippingCaptureForm = () => {
     return target.includes(searchTermFG.toLowerCase());
   });
 
+  // Extrae invoice con U desde el texto escaneado.
+  // Si encuentra solo números, añade la U al final.
+  const extractInvoiceWithU = (raw) => {
+    if (!raw) return '';
+    // busca fragmentos tipo 693857U or 693857
+    const match = raw.match(/(\d+U?)/);
+    if (match && match[1]) {
+      const inv = match[1];
+      return inv.endsWith('U') ? inv : `${inv}U`;
+    }
+    return '';
+  };
+
   const handleScanInvoice = (val) => {
     setScanInvoice(val);
-    const match = (val || '').match(/(\d{6,})/);
-    if (match) setSelectedInvoice(match[1]);
+    const inv = extractInvoiceWithU(val);
+    setSelectedInvoice(inv);
   };
 
   const handleFGInputChange = (val) => {
@@ -81,8 +95,10 @@ const FedexShippingCaptureForm = () => {
   };
 
   const createEntry = () => ({
-    invoice: selectedInvoice ? `${selectedInvoice}U` : '',
-    order: selectedInvoice || '',
+    // rawScanText se guarda completo; invoice se genera con sufijo U
+    rawScanText: scanInvoice || '',
+    invoice: selectedInvoice || '',
+    order: selectedInvoice ? selectedInvoice.replace(/U$/, '') : '',
     lineNumber,
     finishedGood: selectedFinishedGood ? (selectedFinishedGood.finishedGood || selectedFinishedGood.name) : '',
     finishedGoodObject: selectedFinishedGood || null,
@@ -90,7 +106,7 @@ const FedexShippingCaptureForm = () => {
     trackingNumber: trackingNumber || '',
     comments: comments || '',
     shippingDate: shipmentDate || '',
-    captureTime: new Date().toISOString(),
+    captureTime: new Date().toISOString(), // fecha y hora completas
   });
 
   const persistEntries = async (newEntries) => {
@@ -103,6 +119,7 @@ const FedexShippingCaptureForm = () => {
     setEntries(newEntries);
   };
 
+  // Añadir línea y conservar tracking/obs/comments/shipmentDate para la tanda
   const handleAddLineAndContinue = async () => {
     if (!selectedInvoice) {
       showMessage('Selecciona o captura la invoice antes de agregar la línea.', 3500);
@@ -117,21 +134,50 @@ const FedexShippingCaptureForm = () => {
     const newEntries = [...entries, newEntry];
     await persistEntries(newEntries);
 
-    // Incrementar línea y limpiar solo lo necesario:
+    // Incrementar línea y limpiar solo FG y scanInvoice/invoice/line-specific fields
     setLineNumber((n) => n + 1);
     setSelectedFinishedGood(null);
     setSearchTermFG('');
-    // NOTA: conservar trackingNumber, selectedObservation, comments y shipmentDate
+    setScanInvoice(''); // limpiar texto escaneado pero conservar shipmentDate, tracking, obs, comments
+    setSelectedInvoice(''); // invoice cleared until next scan
     showMessage(`Línea ${newEntry.lineNumber} guardada con éxito.`, 3000);
   };
 
+  // Guardar orden de 1 sola línea y limpiar todo para ingresar nueva orden
   const handleSaveOrder = async () => {
-    if (!selectedInvoice) {
-      showMessage('Captura la invoice antes de guardar la orden.', 3000);
+    // Si ya hay entries pendientes y el flujo de "guardar orden" es para una orden de 1 línea,
+    // guardamos la línea actual si existe o no hay entries y luego limpiamos completamente.
+    // Si hay entries previas (tanda), entendemos que ya guardaste líneas; igual limpiamos
+    let newEntries = entries.slice();
+    // si no hay entries o la intención es guardar la línea actual como orden individual
+    if (selectedInvoice && selectedFinishedGood) {
+      const singleEntry = createEntry();
+      newEntries = [...newEntries, singleEntry];
+      await persistEntries(newEntries);
+      showMessage('Orden de 1 línea guardada correctamente.', 3000);
+    } else if (entries.length === 1) {
+      // ya existe una entrada única; confirmación
+      showMessage('Orden guardada correctamente.', 3000);
+    } else if (entries.length > 1) {
+      showMessage('La orden contiene varias líneas; ya están guardadas.', 3000);
+    } else {
+      showMessage('No hay datos para guardar.', 3000);
       return;
     }
-    // En este flujo "guardar orden" ya dejó persistido cada línea; solo confirmamos
-    showMessage('Orden guardada correctamente.', 3000);
+
+    // limpiar todo para nueva orden: reset completo de formulario (incluye shipmentDate)
+    setSelectedInvoice('');
+    setScanInvoice('');
+    setSelectedFinishedGood(null);
+    setSearchTermFG('');
+    setSelectedObservation('');
+    setTrackingNumber('');
+    setComments('');
+    setShipmentDate('');
+    setLineNumber(1);
+    setEntries([]); // si quieres mantener histórico en UI, comenta esta línea
+    // Persistir limpieza (opcional): dejamos en backend la lista resultante (ya enviada)
+    // Si prefieres mantener el historial en local UI, no borrar entries aquí y ajustar UX
   };
 
   const handleRemoveEntry = async (lineToRemove) => {
@@ -146,7 +192,6 @@ const FedexShippingCaptureForm = () => {
   const getObservationText = (obsVal) => {
     if (!obsVal) return '';
     if (!Array.isArray(observationsList) || observationsList.length === 0) return obsVal;
-    // support observation as primitive or object; try matching common keys
     const found = observationsList.find((o) => {
       if (o == null) return false;
       if (typeof o === 'string') return o === obsVal;
@@ -160,35 +205,38 @@ const FedexShippingCaptureForm = () => {
   };
 
   return (
-    <div className="w-full max-w-3xl mx-auto p-6 bg-white rounded-xl shadow-lg">
+    <div className="w-full max-w-5xl mx-auto p-8 bg-white rounded-xl shadow-lg">
       <h2 className="text-2xl font-bold mb-4 text-center">Captura de Envíos Fedex</h2>
 
       {message && <div className="mb-4 text-center text-green-700">{message}</div>}
 
-      <div className="mb-4">
-        <label className="block text-sm font-semibold mb-1">Invoice (Automático)</label>
-        <input type="text" readOnly className="w-full px-3 py-2 border rounded bg-gray-100" value={selectedInvoice} />
-      </div>
-
-      <div className="mb-4">
-        <label className="block text-sm font-semibold mb-1">Scan Invoice / texto</label>
-        <input
-          type="text"
-          value={scanInvoice}
-          onChange={(e) => handleScanInvoice(e.target.value)}
-          placeholder="Ej. 12345678 5.3263TM (1 of 1)"
-          className="w-full px-3 py-2 border rounded"
-        />
-      </div>
-
-      <div className="mb-4">
+      {/* Fecha de envío para el corte en parte superior */}
+      <div className="mb-6">
         <label className="block text-sm font-semibold mb-1">Fecha de Envío para el Corte</label>
         <input
           type="date"
-          className="w-full px-3 py-2 border rounded"
+          className="w-64 px-3 py-2 border rounded"
           value={shipmentDate}
           onChange={(e) => setShipmentDate(e.target.value)}
         />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+        <div className="md:col-span-1">
+          <label className="block text-sm font-semibold mb-1">Invoice (Automático)</label>
+          <input type="text" readOnly className="w-full px-3 py-2 border rounded bg-gray-100" value={selectedInvoice} />
+        </div>
+
+        <div className="md:col-span-2">
+          <label className="block text-sm font-semibold mb-1">Scan Invoice / texto</label>
+          <input
+            type="text"
+            value={scanInvoice}
+            onChange={(e) => handleScanInvoice(e.target.value)}
+            placeholder="Ej. 693857U,S-2423TMB (1 of 1),Leatherette - Quilted..."
+            className="w-full px-3 py-2 border rounded"
+          />
+        </div>
       </div>
 
       {/* Autocomplete Finished Good */}
@@ -223,47 +271,49 @@ const FedexShippingCaptureForm = () => {
         )}
       </div>
 
-      <div className="mb-4">
-        <label className="block text-sm font-semibold mb-1">Observación</label>
-        <select
-          value={selectedObservation}
-          onChange={(e) => setSelectedObservation(e.target.value)}
-          className="w-full px-3 py-2 border rounded"
-        >
-          <option value="">Seleccione una opción</option>
-          {observationsList.map((obs, idx) => {
-            const val = obs && typeof obs === 'object' ? (obs.value || obs.id || obs.text || obs.label || '') : obs;
-            const label = obs && typeof obs === 'object' ? (obs.text || obs.label || obs.value || obs.id || '') : obs;
-            const key = obs && typeof obs === 'object' ? (obs.id || idx) : idx;
-            return (
-              <option key={key} value={val}>
-                {label}
-              </option>
-            );
-          })}
-        </select>
-      </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+        <div>
+          <label className="block text-sm font-semibold mb-1">Observación</label>
+          <select
+            value={selectedObservation}
+            onChange={(e) => setSelectedObservation(e.target.value)}
+            className="w-full px-3 py-2 border rounded"
+          >
+            <option value="">Seleccione una opción</option>
+            {observationsList.map((obs, idx) => {
+              const val = obs && typeof obs === 'object' ? (obs.value || obs.id || obs.text || obs.label || '') : obs;
+              const label = obs && typeof obs === 'object' ? (obs.text || obs.label || obs.value || obs.id || '') : obs;
+              const key = obs && typeof obs === 'object' ? (obs.id || idx) : idx;
+              return (
+                <option key={key} value={val}>
+                  {label}
+                </option>
+              );
+            })}
+          </select>
+        </div>
 
-      <div className="mb-4">
-        <label className="block text-sm font-semibold mb-1">Tracking Number</label>
-        <input
-          type="text"
-          value={trackingNumber}
-          onChange={(e) => setTrackingNumber(e.target.value)}
-          placeholder="Ej. 123456789012"
-          className="w-full px-3 py-2 border rounded"
-        />
-      </div>
+        <div>
+          <label className="block text-sm font-semibold mb-1">Tracking Number</label>
+          <input
+            type="text"
+            value={trackingNumber}
+            onChange={(e) => setTrackingNumber(e.target.value)}
+            placeholder="Ej. 123456789012"
+            className="w-full px-3 py-2 border rounded"
+          />
+        </div>
 
-      <div className="mb-4">
-        <label className="block text-sm font-semibold mb-1">Comentarios Adicionales</label>
-        <input
-          type="text"
-          value={comments}
-          onChange={(e) => setComments(e.target.value)}
-          className="w-full px-3 py-2 border rounded"
-          placeholder="Comentarios opcionales"
-        />
+        <div>
+          <label className="block text-sm font-semibold mb-1">Comentarios Adicionales</label>
+          <input
+            type="text"
+            value={comments}
+            onChange={(e) => setComments(e.target.value)}
+            className="w-full px-3 py-2 border rounded"
+            placeholder="Comentarios opcionales"
+          />
+        </div>
       </div>
 
       <div className="flex gap-3 mb-6">
@@ -281,30 +331,30 @@ const FedexShippingCaptureForm = () => {
           <table className="w-full table-auto border-collapse">
             <thead>
               <tr className="text-left">
-                <th className="py-2 px-3 border-b">Scan Invoice</th>
+                <th className="py-2 px-3 border-b">Scan Invoice Text</th>
+                <th className="py-2 px-3 border-b">Invoice</th>
                 <th className="py-2 px-3 border-b">Línea</th>
                 <th className="py-2 px-3 border-b">Finished Good</th>
                 <th className="py-2 px-3 border-b">Observación</th>
                 <th className="py-2 px-3 border-b">Tracking</th>
                 <th className="py-2 px-3 border-b">Comentarios</th>
                 <th className="py-2 px-3 border-b">Fecha Corte</th>
-                <th className="py-2 px-3 border-b">Hora Captura</th>
+                <th className="py-2 px-3 border-b">Fecha y Hora Captura</th>
                 <th className="py-2 px-3 border-b">Acciones</th>
               </tr>
             </thead>
             <tbody>
               {entries.map((entry) => (
                 <tr key={entry.lineNumber}>
-                  <td className="py-2 px-3 border-b">{entry.invoice || entry.order}</td>
+                  <td className="py-2 px-3 border-b">{entry.rawScanText || '—'}</td>
+                  <td className="py-2 px-3 border-b">{entry.invoice || '—'}</td>
                   <td className="py-2 px-3 border-b">{entry.lineNumber}</td>
                   <td className="py-2 px-3 border-b">{entry.finishedGood}</td>
                   <td className="py-2 px-3 border-b">{getObservationText(entry.observation)}</td>
                   <td className="py-2 px-3 border-b">{entry.trackingNumber || '—'}</td>
                   <td className="py-2 px-3 border-b">{entry.comments || '—'}</td>
                   <td className="py-2 px-3 border-b">{entry.shippingDate || '—'}</td>
-                  <td className="py-2 px-3 border-b">
-                    {entry.captureTime ? new Date(entry.captureTime).toLocaleTimeString() : '—'}
-                  </td>
+                  <td className="py-2 px-3 border-b">{entry.captureTime ? new Date(entry.captureTime).toLocaleString() : '—'}</td>
                   <td className="py-2 px-3 border-b">
                     <button onClick={() => handleRemoveEntry(entry.lineNumber)} className="text-sm px-2 py-1 bg-red-500 text-white rounded">
                       Eliminar
