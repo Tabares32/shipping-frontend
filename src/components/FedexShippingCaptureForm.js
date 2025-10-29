@@ -5,13 +5,12 @@ import { mockObservations } from '../mock/observations';
 
 const FedexShippingCaptureForm = () => {
   const [finishedGoodsList, setFinishedGoodsList] = useState([]);
-  const [availableMaterials, setAvailableMaterials] = useState([]);
   const [observationsList, setObservationsList] = useState([]);
 
   const [selectedInvoice, setSelectedInvoice] = useState('');
   const [scanInvoice, setScanInvoice] = useState('');
-  const [shipmentDate, setShipmentDate] = useState('');
-  const [shippingDateForCut, setShippingDateForCut] = useState(false);
+  const [shipmentDate, setShipmentDate] = useState(''); // Fecha de envío para corte (se mantiene hasta cambiar)
+  const [comments, setComments] = useState('');
 
   const [searchTermFG, setSearchTermFG] = useState('');
   const [selectedFinishedGood, setSelectedFinishedGood] = useState(null);
@@ -20,7 +19,7 @@ const FedexShippingCaptureForm = () => {
   const [selectedObservation, setSelectedObservation] = useState('');
   const [trackingNumber, setTrackingNumber] = useState('');
   const [lineNumber, setLineNumber] = useState(1);
-  const [entries, setEntries] = useState([]);
+  const [entries, setEntries] = useState([]); // ahora se guarda en 'fedexOrders'
   const [message, setMessage] = useState('');
 
   const fgInputRef = useRef(null);
@@ -28,17 +27,11 @@ const FedexShippingCaptureForm = () => {
 
   useEffect(() => {
     const fgs = getStorage('customFinishedGoods') || mockFinishedGoods || [];
-    const mats = getStorage('materialsBOM') || getStorage('materials') || [];
-    const obs =
-  getStorage('customObservations') ||
-  getStorage('observations') ||
-  mockObservations;
+    const obs = getStorage('customObservations') || getStorage('observations') || mockObservations;
+    const savedEntries = getStorage('fedexOrders') || [];
 
     setFinishedGoodsList(Array.isArray(fgs) ? fgs : []);
-    setAvailableMaterials(Array.isArray(mats) ? mats : []);
     setObservationsList(Array.isArray(obs) ? obs : []);
-
-    const savedEntries = getStorage('entries') || [];
     setEntries(Array.isArray(savedEntries) ? savedEntries : []);
     setLineNumber((Array.isArray(savedEntries) ? savedEntries.length : 0) + 1);
   }, []);
@@ -88,58 +81,26 @@ const FedexShippingCaptureForm = () => {
   };
 
   const createEntry = () => ({
+    invoice: selectedInvoice ? `${selectedInvoice}U` : '',
     order: selectedInvoice || '',
     lineNumber,
     finishedGood: selectedFinishedGood ? (selectedFinishedGood.finishedGood || selectedFinishedGood.name) : '',
     finishedGoodObject: selectedFinishedGood || null,
     observation: selectedObservation || '',
     trackingNumber: trackingNumber || '',
+    comments: comments || '',
     shippingDate: shipmentDate || '',
     captureTime: new Date().toISOString(),
   });
 
   const persistEntries = async (newEntries) => {
-    setStorage('entries', newEntries);
+    setStorage('fedexOrders', newEntries);
     try {
       await syncToBackend();
     } catch (err) {
-      console.warn('Error sincronizando entries:', err);
+      console.warn('Error sincronizando fedexOrders:', err);
     }
     setEntries(newEntries);
-  };
-
-  const updateMaterialsStockFromFG = async (fgObject) => {
-    if (!fgObject) return;
-    const storedMaterials = getStorage('materialsBOM') || getStorage('materials') || [];
-    const updatedMaterials = Array.isArray(storedMaterials) ? storedMaterials.map(m => ({ ...m })) : [];
-
-    // Support BOM as array or indexed properties matId1..matId16 and cantidad1..cantidad16
-    if (Array.isArray(fgObject.bom) && fgObject.bom.length > 0) {
-      fgObject.bom.forEach((b) => {
-        if (!b || !b.materialId) return;
-        const qty = Number(b.quantity || 0);
-        if (qty <= 0) return;
-        const idx = updatedMaterials.findIndex(m => (m.materialId || m.id || m.ID) === b.materialId);
-        if (idx >= 0) updatedMaterials[idx].stock = Math.max(0, (Number(updatedMaterials[idx].stock) || 0) - qty);
-      });
-    } else {
-      for (let i = 1; i <= 16; i++) {
-        const matId = (fgObject[`matId${i}`] || '').toString();
-        const qty = parseFloat(fgObject[`cantidad${i}`] || 0) || 0;
-        if (!matId || qty <= 0) continue;
-        const idx = updatedMaterials.findIndex(m => (m.materialId || m.id || m.ID) === matId);
-        if (idx >= 0) updatedMaterials[idx].stock = Math.max(0, (Number(updatedMaterials[idx].stock) || 0) - qty);
-      }
-    }
-
-    setStorage('materialsBOM', updatedMaterials);
-    setStorage('materials', updatedMaterials);
-    try {
-      await syncToBackend();
-    } catch (err) {
-      console.warn('Error sincronizando materials after update:', err);
-    }
-    setAvailableMaterials(updatedMaterials);
   };
 
   const handleAddLineAndContinue = async () => {
@@ -155,14 +116,12 @@ const FedexShippingCaptureForm = () => {
     const newEntry = createEntry();
     const newEntries = [...entries, newEntry];
     await persistEntries(newEntries);
-    await updateMaterialsStockFromFG(selectedFinishedGood);
 
-    setLineNumber(n => n + 1);
+    // Incrementar línea y limpiar solo lo necesario:
+    setLineNumber((n) => n + 1);
     setSelectedFinishedGood(null);
     setSearchTermFG('');
-    setSelectedObservation('');
-    setShipmentDate('');
-    setTrackingNumber('');
+    // NOTA: conservar trackingNumber, selectedObservation, comments y shipmentDate
     showMessage(`Línea ${newEntry.lineNumber} guardada con éxito.`, 3000);
   };
 
@@ -171,11 +130,12 @@ const FedexShippingCaptureForm = () => {
       showMessage('Captura la invoice antes de guardar la orden.', 3000);
       return;
     }
+    // En este flujo "guardar orden" ya dejó persistido cada línea; solo confirmamos
     showMessage('Orden guardada correctamente.', 3000);
   };
 
   const handleRemoveEntry = async (lineToRemove) => {
-    const updated = entries.filter(e => e.lineNumber !== lineToRemove);
+    const updated = entries.filter((e) => e.lineNumber !== lineToRemove);
     const reindexed = updated.map((e, idx) => ({ ...e, lineNumber: idx + 1 }));
     await persistEntries(reindexed);
     setLineNumber(reindexed.length + 1);
@@ -187,11 +147,11 @@ const FedexShippingCaptureForm = () => {
     if (!obsVal) return '';
     if (!Array.isArray(observationsList) || observationsList.length === 0) return obsVal;
     // support observation as primitive or object; try matching common keys
-    const found = observationsList.find(o => {
+    const found = observationsList.find((o) => {
       if (o == null) return false;
       if (typeof o === 'string') return o === obsVal;
       const candidates = [o.id, o.value, o.text, o.label];
-      return candidates.some(c => c !== undefined && String(c) === String(obsVal));
+      return candidates.some((c) => c !== undefined && String(c) === String(obsVal));
     });
     if (found) {
       return typeof found === 'string' ? found : (found.text || found.label || found.value || found.id || obsVal);
@@ -228,7 +188,6 @@ const FedexShippingCaptureForm = () => {
           className="w-full px-3 py-2 border rounded"
           value={shipmentDate}
           onChange={(e) => setShipmentDate(e.target.value)}
-          onClick={() => setShippingDateForCut(true)}
         />
       </div>
 
@@ -298,7 +257,13 @@ const FedexShippingCaptureForm = () => {
 
       <div className="mb-4">
         <label className="block text-sm font-semibold mb-1">Comentarios Adicionales</label>
-        <input type="text" className="w-full px-3 py-2 border rounded" placeholder="Comentarios opcionales" />
+        <input
+          type="text"
+          value={comments}
+          onChange={(e) => setComments(e.target.value)}
+          className="w-full px-3 py-2 border rounded"
+          placeholder="Comentarios opcionales"
+        />
       </div>
 
       <div className="flex gap-3 mb-6">
@@ -316,22 +281,30 @@ const FedexShippingCaptureForm = () => {
           <table className="w-full table-auto border-collapse">
             <thead>
               <tr className="text-left">
-                <th className="py-2 px-3 border-b">Orden</th>
+                <th className="py-2 px-3 border-b">Scan Invoice</th>
                 <th className="py-2 px-3 border-b">Línea</th>
                 <th className="py-2 px-3 border-b">Finished Good</th>
                 <th className="py-2 px-3 border-b">Observación</th>
-                <th className="py-2 px-3 border-b">Track</th>
+                <th className="py-2 px-3 border-b">Tracking</th>
+                <th className="py-2 px-3 border-b">Comentarios</th>
+                <th className="py-2 px-3 border-b">Fecha Corte</th>
+                <th className="py-2 px-3 border-b">Hora Captura</th>
                 <th className="py-2 px-3 border-b">Acciones</th>
               </tr>
             </thead>
             <tbody>
               {entries.map((entry) => (
                 <tr key={entry.lineNumber}>
-                  <td className="py-2 px-3 border-b">{entry.order}</td>
+                  <td className="py-2 px-3 border-b">{entry.invoice || entry.order}</td>
                   <td className="py-2 px-3 border-b">{entry.lineNumber}</td>
                   <td className="py-2 px-3 border-b">{entry.finishedGood}</td>
                   <td className="py-2 px-3 border-b">{getObservationText(entry.observation)}</td>
                   <td className="py-2 px-3 border-b">{entry.trackingNumber || '—'}</td>
+                  <td className="py-2 px-3 border-b">{entry.comments || '—'}</td>
+                  <td className="py-2 px-3 border-b">{entry.shippingDate || '—'}</td>
+                  <td className="py-2 px-3 border-b">
+                    {entry.captureTime ? new Date(entry.captureTime).toLocaleTimeString() : '—'}
+                  </td>
                   <td className="py-2 px-3 border-b">
                     <button onClick={() => handleRemoveEntry(entry.lineNumber)} className="text-sm px-2 py-1 bg-red-500 text-white rounded">
                       Eliminar
