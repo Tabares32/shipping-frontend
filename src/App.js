@@ -39,10 +39,10 @@ const App = () => {
       try {
         setIsSyncing(true);
         await initStorageSync(token, [
-          "customFinishedGoods",
+          "finished_goods",
           "fedexOrders",
           "fedexShippingRecords",
-          "customObservations",
+          "observations",
           "inventoryCuts",
           "retainedOrders"
         ]);
