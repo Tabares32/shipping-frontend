@@ -11,17 +11,19 @@ const ShippingRegisterForm = () => {
   const [arizonaExpenditure, setArizonaExpenditure] = useState('');
   const [message, setMessage] = useState('');
 
-  // Nueva lógica para fecha de envío
   const [showDateModal, setShowDateModal] = useState(false);
   const [selectedShippingDate, setSelectedShippingDate] = useState('');
 
+  const [recordToDelete, setRecordToDelete] = useState(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
   useEffect(() => {
     const storedRecords = getStorage('uspsOrders') || [];
-    setShippingRecords(storedRecords);
+    setShippingRecords(Array.isArray(storedRecords) ? storedRecords : []);
   }, []);
 
   const handleSaveOrder = () => {
-    setShowDateModal(true); // abrir modal para seleccionar fecha
+    setShowDateModal(true);
   };
 
   const handleConfirmShippingDate = async () => {
@@ -30,23 +32,27 @@ const ShippingRegisterForm = () => {
       id: Date.now(),
       invoice,
       boxDimension,
-      weight: parseFloat(weight),
+      weight: weight !== '' ? parseFloat(weight) : null,
       shippingDay: selectedShippingDate || now.toLocaleDateString(),
       captureTime: now.toLocaleTimeString(),
-      addedFund: parseFloat(addedFund),
-      cost: parseFloat(cost),
-      arizonaExpenditure: parseFloat(arizonaExpenditure),
+      addedFund: addedFund !== '' ? parseFloat(addedFund) : 0,
+      cost: cost !== '' ? parseFloat(cost) : 0,
+      arizonaExpenditure: arizonaExpenditure !== '' ? parseFloat(arizonaExpenditure) : 0,
       balance: (
-        parseFloat(addedFund) -
-        parseFloat(cost) -
-        parseFloat(arizonaExpenditure)
+        (addedFund !== '' ? parseFloat(addedFund) : 0) -
+        (cost !== '' ? parseFloat(cost) : 0) -
+        (arizonaExpenditure !== '' ? parseFloat(arizonaExpenditure) : 0)
       ).toFixed(3),
     };
 
     const updatedRecords = [...shippingRecords, newRecord];
     setStorage('uspsOrders', updatedRecords);
     setShippingRecords(updatedRecords);
-    await syncToBackend();
+    try {
+      await syncToBackend();
+    } catch (err) {
+      console.warn('Error sincronizando uspsOrders:', err);
+    }
 
     setMessage('¡Orden guardada con éxito!');
     setInvoice('');
@@ -57,6 +63,29 @@ const ShippingRegisterForm = () => {
     setArizonaExpenditure('');
     setSelectedShippingDate('');
     setShowDateModal(false);
+
+    // limpiar mensaje después de unos segundos
+    setTimeout(() => setMessage(''), 4000);
+  };
+
+  const handleDeleteClick = (recordId) => {
+    setRecordToDelete(recordId);
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDeleteRecord = async () => {
+    const updated = shippingRecords.filter((r) => r.id !== recordToDelete);
+    setStorage('uspsOrders', updated);
+    setShippingRecords(updated);
+    try {
+      await syncToBackend();
+    } catch (err) {
+      console.warn('Error sincronizando uspsOrders después de eliminar:', err);
+    }
+    setMessage('Registro eliminado correctamente.');
+    setShowDeleteConfirm(false);
+    setRecordToDelete(null);
+    setTimeout(() => setMessage(''), 3000);
   };
 
   return (
@@ -67,31 +96,64 @@ const ShippingRegisterForm = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
         <div>
           <label className="block text-gray-700 text-sm font-semibold mb-2">Invoice</label>
-          <input type="text" className="w-full px-4 py-2 border border-gray-300 rounded-lg" value={invoice} onChange={(e) => setInvoice(e.target.value)} />
+          <input
+            type="text"
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+            value={invoice}
+            onChange={(e) => setInvoice(e.target.value)}
+          />
         </div>
         <div>
           <label className="block text-gray-700 text-sm font-semibold mb-2">Dimensión Caja</label>
-          <input type="text" className="w-full px-4 py-2 border border-gray-300 rounded-lg" value={boxDimension} onChange={(e) => setBoxDimension(e.target.value)} />
+          <input
+            type="text"
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+            value={boxDimension}
+            onChange={(e) => setBoxDimension(e.target.value)}
+          />
         </div>
         <div>
           <label className="block text-gray-700 text-sm font-semibold mb-2">Peso (Lbs)</label>
-          <input type="number" className="w-full px-4 py-2 border border-gray-300 rounded-lg" value={weight} onChange={(e) => setWeight(e.target.value)} />
+          <input
+            type="number"
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+            value={weight}
+            onChange={(e) => setWeight(e.target.value)}
+          />
         </div>
         <div>
           <label className="block text-gray-700 text-sm font-semibold mb-2">Added Fund</label>
-          <input type="number" className="w-full px-4 py-2 border border-gray-300 rounded-lg" value={addedFund} onChange={(e) => setAddedFund(e.target.value)} />
+          <input
+            type="number"
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+            value={addedFund}
+            onChange={(e) => setAddedFund(e.target.value)}
+          />
         </div>
         <div>
           <label className="block text-gray-700 text-sm font-semibold mb-2">Costo</label>
-          <input type="number" className="w-full px-4 py-2 border border-gray-300 rounded-lg" value={cost} onChange={(e) => setCost(e.target.value)} />
+          <input
+            type="number"
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+            value={cost}
+            onChange={(e) => setCost(e.target.value)}
+          />
         </div>
         <div>
           <label className="block text-gray-700 text-sm font-semibold mb-2">Arizona Expenditure</label>
-          <input type="number" className="w-full px-4 py-2 border border-gray-300 rounded-lg" value={arizonaExpenditure} onChange={(e) => setArizonaExpenditure(e.target.value)} />
+          <input
+            type="number"
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+            value={arizonaExpenditure}
+            onChange={(e) => setArizonaExpenditure(e.target.value)}
+          />
         </div>
       </div>
 
-      <button onClick={handleSaveOrder} className="w-full mt-8 bg-black text-white py-3 rounded-xl hover:bg-gray-800 transition-all duration-300 text-lg font-semibold shadow-lg">
+      <button
+        onClick={handleSaveOrder}
+        className="w-full mt-4 bg-black text-white py-3 rounded-xl hover:bg-gray-800 transition-all duration-300 text-lg font-semibold shadow-lg"
+      >
         Guardar Orden
       </button>
 
@@ -107,8 +169,35 @@ const ShippingRegisterForm = () => {
               className="w-full px-4 py-2 border border-gray-300 rounded-lg mb-4"
             />
             <div className="flex justify-end gap-4">
-              <button onClick={() => setShowDateModal(false)} className="px-4 py-2 bg-gray-300 rounded-lg">Cancelar</button>
-              <button onClick={handleConfirmShippingDate} className="px-4 py-2 bg-blue-600 text-white rounded-lg">Aceptar</button>
+              <button
+                onClick={() => {
+                  setShowDateModal(false);
+                  setSelectedShippingDate('');
+                }}
+                className="px-4 py-2 bg-gray-300 rounded-lg"
+              >
+                Cancelar
+              </button>
+              <button onClick={handleConfirmShippingDate} className="px-4 py-2 bg-blue-600 text-white rounded-lg">
+                Aceptar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de confirmación para eliminar */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-xl shadow-xl w-full max-w-md">
+            <h3 className="text-lg font-semibold mb-4 text-center text-red-700">¿Seguro que deseas eliminar esta orden?</h3>
+            <div className="flex justify-end gap-4">
+              <button onClick={() => setShowDeleteConfirm(false)} className="px-4 py-2 bg-gray-300 rounded-lg">
+                No
+              </button>
+              <button onClick={confirmDeleteRecord} className="px-4 py-2 bg-red-600 text-white rounded-lg">
+                Sí, eliminar
+              </button>
             </div>
           </div>
         </div>
@@ -127,6 +216,7 @@ const ShippingRegisterForm = () => {
               <th className="py-3 px-4">Costo</th>
               <th className="py-3 px-4">Arizona Exp.</th>
               <th className="py-3 px-4">Balance</th>
+              <th className="py-3 px-4">Acciones</th>
             </tr>
           </thead>
           <tbody>
@@ -135,18 +225,26 @@ const ShippingRegisterForm = () => {
                 <tr key={record.id} className="border-b hover:bg-gray-50">
                   <td className="py-3 px-4">{record.invoice}</td>
                   <td className="py-3 px-4">{record.boxDimension}</td>
-                  <td className="py-3 px-4">{record.weight}</td>
+                  <td className="py-3 px-4">{record.weight ?? '—'}</td>
                   <td className="py-3 px-4">{record.shippingDay}</td>
                   <td className="py-3 px-4">{record.captureTime}</td>
                   <td className="py-3 px-4">{record.addedFund}</td>
                   <td className="py-3 px-4">{record.cost}</td>
                   <td className="py-3 px-4">{record.arizonaExpenditure}</td>
                   <td className="py-3 px-4 font-semibold">{record.balance}</td>
+                  <td className="py-3 px-4">
+                    <button
+                      onClick={() => handleDeleteClick(record.id)}
+                      className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 text-sm"
+                    >
+                      Eliminar
+                    </button>
+                  </td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan="9" className="py-4 text-center text-gray-500">No hay registros de envíos.</td>
+                <td colSpan="10" className="py-4 text-center text-gray-500">No hay registros de envíos.</td>
               </tr>
             )}
           </tbody>
