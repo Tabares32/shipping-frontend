@@ -28,7 +28,7 @@ const FedexShippingCaptureForm = () => {
 
   useEffect(() => {
     const fgs = getStorage('finished_goods') || mockFinishedGoods || [];
-    const obs = getStorage('Observations') || getStorage('observations') || mockObservations;
+    const obs = getStorage('observations') || getStorage('observations') || mockObservations;
     const savedEntries = getStorage('fedexOrders') || [];
     const savedShipmentDate = getStorage('fedexShipmentDate') || getStorage('shipmentDate') || '';
 
