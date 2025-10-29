@@ -13,7 +13,7 @@ const InvoiceHistory = () => {
 
   useEffect(() => {
     loadInvoices();
-    setAvailableFinishedGoods(getStorage('customFinishedGoods') || mockFinishedGoods);
+    setAvailableFinishedGoods(getStorage('finished_goods') || mockFinishedGoods);
     setAvailableObservations(getStorage('customObservations') || mockObservations);
   }, []);
 

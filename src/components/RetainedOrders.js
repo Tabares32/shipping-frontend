@@ -31,7 +31,7 @@ const RetainedOrders = () => {
   useEffect(() => {
     const storedOrders = getStorage('retainedOrders') || [];
     setRetainedOrders(Array.isArray(storedOrders) ? storedOrders : []);
-    setAvailableFinishedGoods(getStorage('customFinishedGoods') || mockFinishedGoods);
+    setAvailableFinishedGoods(getStorage('finished_goods') || mockFinishedGoods);
   }, []);
 
   const clearMessageLater = (timeout = 3500) => {

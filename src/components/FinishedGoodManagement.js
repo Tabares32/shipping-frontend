@@ -13,7 +13,7 @@ const FinishedGoodManagement = () => {
 
   useEffect(() => {
     const storedFinishedGoods =
-      getStorage('customFinishedGoods') ||
+      getStorage('finished_goods') ||
       getStorage('finishedGoods') ||
       mockFinishedGoods;
     const storedMaterials =
@@ -76,7 +76,7 @@ const FinishedGoodManagement = () => {
     };
 
     const updated = [...finishedGoods, newFG];
-    setStorage('customFinishedGoods', updated);
+    setStorage('Finished_Goods', updated);
     setStorage('finishedGoods', updated);
     setFinishedGoods(updated);
     try {
@@ -94,7 +94,7 @@ const FinishedGoodManagement = () => {
 
   const handleRemoveFinishedGood = async (fgToRemove) => {
     const updated = finishedGoods.filter((f) => f.finishedGood !== fgToRemove);
-    setStorage('customFinishedGoods', updated);
+    setStorage('Finished_Goods', updated);
     setStorage('finishedGoods', updated);
     setFinishedGoods(updated);
     try {
