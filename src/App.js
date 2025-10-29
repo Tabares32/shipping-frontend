@@ -38,7 +38,14 @@ const App = () => {
     (async () => {
       try {
         setIsSyncing(true);
-        await initStorageSync(token);
+        await initStorageSync(token, [
+          "customFinishedGoods",
+          "fedexOrders",
+          "fedexShippingRecords",
+          "customObservations",
+          "inventoryCuts",
+          "retainedOrders"
+        ]);
         console.log("✅ Sincronización inicial completada");
       } catch (error) {
         console.warn("⚠️ Error en sincronización inicial:", error);
