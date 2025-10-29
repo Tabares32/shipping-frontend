@@ -7,10 +7,9 @@ const FedexShippingCaptureForm = () => {
   const [finishedGoodsList, setFinishedGoodsList] = useState([]);
   const [observationsList, setObservationsList] = useState([]);
 
-  // Form state
-  const [selectedInvoice, setSelectedInvoice] = useState(''); // invoice (with U)
-  const [scanInvoice, setScanInvoice] = useState(''); // raw scan text input
-  const [shipmentDate, setShipmentDate] = useState(''); // fecha de envío (corte) en la parte superior
+  const [selectedInvoice, setSelectedInvoice] = useState('');
+  const [scanInvoice, setScanInvoice] = useState('');
+  const [shipmentDate, setShipmentDate] = useState('');
   const [comments, setComments] = useState('');
 
   const [searchTermFG, setSearchTermFG] = useState('');
@@ -63,11 +62,8 @@ const FedexShippingCaptureForm = () => {
     return target.includes(searchTermFG.toLowerCase());
   });
 
-  // Extrae invoice con U desde el texto escaneado.
-  // Si encuentra solo números, añade la U al final.
   const extractInvoiceWithU = (raw) => {
     if (!raw) return '';
-    // busca fragmentos tipo 693857U or 693857
     const match = raw.match(/(\d+U?)/);
     if (match && match[1]) {
       const inv = match[1];
@@ -95,7 +91,6 @@ const FedexShippingCaptureForm = () => {
   };
 
   const createEntry = () => ({
-    // rawScanText se guarda completo; invoice se genera con sufijo U
     rawScanText: scanInvoice || '',
     invoice: selectedInvoice || '',
     order: selectedInvoice ? selectedInvoice.replace(/U$/, '') : '',
@@ -106,7 +101,7 @@ const FedexShippingCaptureForm = () => {
     trackingNumber: trackingNumber || '',
     comments: comments || '',
     shippingDate: shipmentDate || '',
-    captureTime: new Date().toISOString(), // fecha y hora completas
+    captureTime: new Date().toISOString(),
   });
 
   const persistEntries = async (newEntries) => {
@@ -119,7 +114,6 @@ const FedexShippingCaptureForm = () => {
     setEntries(newEntries);
   };
 
-  // Añadir línea y conservar tracking/obs/comments/shipmentDate para la tanda
   const handleAddLineAndContinue = async () => {
     if (!selectedInvoice) {
       showMessage('Selecciona o captura la invoice antes de agregar la línea.', 3500);
@@ -134,29 +128,25 @@ const FedexShippingCaptureForm = () => {
     const newEntries = [...entries, newEntry];
     await persistEntries(newEntries);
 
-    // Incrementar línea y limpiar solo FG y scanInvoice/invoice/line-specific fields
     setLineNumber((n) => n + 1);
     setSelectedFinishedGood(null);
     setSearchTermFG('');
-    setScanInvoice(''); // limpiar texto escaneado pero conservar shipmentDate, tracking, obs, comments
-    setSelectedInvoice(''); // invoice cleared until next scan
+    setScanInvoice('');
+    setSelectedInvoice('');
     showMessage(`Línea ${newEntry.lineNumber} guardada con éxito.`, 3000);
   };
 
-  // Guardar orden de 1 sola línea y limpiar todo para ingresar nueva orden
+  // Actualización: guardar y luego recargar desde storage para evitar estado desincronizado en UI
   const handleSaveOrder = async () => {
-    // Si ya hay entries pendientes y el flujo de "guardar orden" es para una orden de 1 línea,
-    // guardamos la línea actual si existe o no hay entries y luego limpiamos completamente.
-    // Si hay entries previas (tanda), entendemos que ya guardaste líneas; igual limpiamos
     let newEntries = entries.slice();
-    // si no hay entries o la intención es guardar la línea actual como orden individual
+
     if (selectedInvoice && selectedFinishedGood) {
       const singleEntry = createEntry();
       newEntries = [...newEntries, singleEntry];
       await persistEntries(newEntries);
       showMessage('Orden de 1 línea guardada correctamente.', 3000);
     } else if (entries.length === 1) {
-      // ya existe una entrada única; confirmación
+      // ya hay una entrada guardada
       showMessage('Orden guardada correctamente.', 3000);
     } else if (entries.length > 1) {
       showMessage('La orden contiene varias líneas; ya están guardadas.', 3000);
@@ -165,7 +155,12 @@ const FedexShippingCaptureForm = () => {
       return;
     }
 
-    // limpiar todo para nueva orden: reset completo de formulario (incluye shipmentDate)
+    // Recargar desde localStorage para reflejar en UI inmediatamente
+    const refreshed = getStorage('fedexOrders') || [];
+    setEntries(Array.isArray(refreshed) ? refreshed : []);
+    setLineNumber((Array.isArray(refreshed) ? refreshed.length : 0) + 1);
+
+    // Limpiar formulario dejando la tanda (shipmentDate, tracking, obs, comments) según preferencia:
     setSelectedInvoice('');
     setScanInvoice('');
     setSelectedFinishedGood(null);
@@ -173,11 +168,7 @@ const FedexShippingCaptureForm = () => {
     setSelectedObservation('');
     setTrackingNumber('');
     setComments('');
-    setShipmentDate('');
-    setLineNumber(1);
-    setEntries([]); // si quieres mantener histórico en UI, comenta esta línea
-    // Persistir limpieza (opcional): dejamos en backend la lista resultante (ya enviada)
-    // Si prefieres mantener el historial en local UI, no borrar entries aquí y ajustar UX
+    setShipmentDate(''); // si prefieres conservar shipmentDate para la tanda, comenta esta línea
   };
 
   const handleRemoveEntry = async (lineToRemove) => {
@@ -188,7 +179,6 @@ const FedexShippingCaptureForm = () => {
     showMessage(`Línea ${lineToRemove} eliminada.`, 3000);
   };
 
-  // helper to resolve observation display text
   const getObservationText = (obsVal) => {
     if (!obsVal) return '';
     if (!Array.isArray(observationsList) || observationsList.length === 0) return obsVal;
@@ -210,7 +200,6 @@ const FedexShippingCaptureForm = () => {
 
       {message && <div className="mb-4 text-center text-green-700">{message}</div>}
 
-      {/* Fecha de envío para el corte en parte superior */}
       <div className="mb-6">
         <label className="block text-sm font-semibold mb-1">Fecha de Envío para el Corte</label>
         <input
@@ -239,7 +228,6 @@ const FedexShippingCaptureForm = () => {
         </div>
       </div>
 
-      {/* Autocomplete Finished Good */}
       <div className="mb-4 relative">
         <label className="block text-sm font-semibold mb-1">Buscar Finished Good</label>
         <input
