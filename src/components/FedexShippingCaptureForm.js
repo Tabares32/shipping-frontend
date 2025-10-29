@@ -7,9 +7,10 @@ const FedexShippingCaptureForm = () => {
   const [finishedGoodsList, setFinishedGoodsList] = useState([]);
   const [observationsList, setObservationsList] = useState([]);
 
+  // Form state
   const [selectedInvoice, setSelectedInvoice] = useState('');
   const [scanInvoice, setScanInvoice] = useState('');
-  const [shipmentDate, setShipmentDate] = useState('');
+  const [shipmentDate, setShipmentDate] = useState(''); // persistente
   const [comments, setComments] = useState('');
 
   const [searchTermFG, setSearchTermFG] = useState('');
@@ -29,11 +30,13 @@ const FedexShippingCaptureForm = () => {
     const fgs = getStorage('customFinishedGoods') || mockFinishedGoods || [];
     const obs = getStorage('customObservations') || getStorage('observations') || mockObservations;
     const savedEntries = getStorage('fedexOrders') || [];
+    const savedShipmentDate = getStorage('fedexShipmentDate') || getStorage('shipmentDate') || '';
 
     setFinishedGoodsList(Array.isArray(fgs) ? fgs : []);
     setObservationsList(Array.isArray(obs) ? obs : []);
     setEntries(Array.isArray(savedEntries) ? savedEntries : []);
     setLineNumber((Array.isArray(savedEntries) ? savedEntries.length : 0) + 1);
+    if (savedShipmentDate) setShipmentDate(savedShipmentDate);
   }, []);
 
   useEffect(() => {
@@ -90,6 +93,13 @@ const FedexShippingCaptureForm = () => {
     setShowFGDropdown(false);
   };
 
+  // Persist shipmentDate to localStorage when changed so it stays fixed for the tanda
+  const handleShipmentDateChange = (val) => {
+    setShipmentDate(val);
+    if (val) setStorage('fedexShipmentDate', val);
+    else setStorage('fedexShipmentDate', ''); // allow clearing if user intentionally clears
+  };
+
   const createEntry = () => ({
     rawScanText: scanInvoice || '',
     invoice: selectedInvoice || '',
@@ -128,15 +138,16 @@ const FedexShippingCaptureForm = () => {
     const newEntries = [...entries, newEntry];
     await persistEntries(newEntries);
 
+    // Incrementar línea y limpiar solo FG y scan-invoice fields
     setLineNumber((n) => n + 1);
     setSelectedFinishedGood(null);
     setSearchTermFG('');
-    setScanInvoice('');
+    setScanInvoice(''); // limpia texto escaneado pero conservamos shipmentDate, tracking, obs, comments
     setSelectedInvoice('');
     showMessage(`Línea ${newEntry.lineNumber} guardada con éxito.`, 3000);
   };
 
-  // Actualización: guardar y luego recargar desde storage para evitar estado desincronizado en UI
+  // Guardar orden (no limpia shipmentDate). Recarga desde storage para evitar desincronía UI.
   const handleSaveOrder = async () => {
     let newEntries = entries.slice();
 
@@ -146,7 +157,6 @@ const FedexShippingCaptureForm = () => {
       await persistEntries(newEntries);
       showMessage('Orden de 1 línea guardada correctamente.', 3000);
     } else if (entries.length === 1) {
-      // ya hay una entrada guardada
       showMessage('Orden guardada correctamente.', 3000);
     } else if (entries.length > 1) {
       showMessage('La orden contiene varias líneas; ya están guardadas.', 3000);
@@ -160,7 +170,7 @@ const FedexShippingCaptureForm = () => {
     setEntries(Array.isArray(refreshed) ? refreshed : []);
     setLineNumber((Array.isArray(refreshed) ? refreshed.length : 0) + 1);
 
-    // Limpiar formulario dejando la tanda (shipmentDate, tracking, obs, comments) según preferencia:
+    // Limpiar formulario pero conservar shipmentDate
     setSelectedInvoice('');
     setScanInvoice('');
     setSelectedFinishedGood(null);
@@ -168,7 +178,7 @@ const FedexShippingCaptureForm = () => {
     setSelectedObservation('');
     setTrackingNumber('');
     setComments('');
-    setShipmentDate(''); // si prefieres conservar shipmentDate para la tanda, comenta esta línea
+    // NOTA: NO limpiar shipmentDate; permanece fijada hasta que el usuario la cambie
   };
 
   const handleRemoveEntry = async (lineToRemove) => {
@@ -200,13 +210,14 @@ const FedexShippingCaptureForm = () => {
 
       {message && <div className="mb-4 text-center text-green-700">{message}</div>}
 
+      {/* Fecha de envío para el corte en parte superior */}
       <div className="mb-6">
         <label className="block text-sm font-semibold mb-1">Fecha de Envío para el Corte</label>
         <input
           type="date"
           className="w-64 px-3 py-2 border rounded"
           value={shipmentDate}
-          onChange={(e) => setShipmentDate(e.target.value)}
+          onChange={(e) => handleShipmentDateChange(e.target.value)}
         />
       </div>
 
@@ -228,6 +239,7 @@ const FedexShippingCaptureForm = () => {
         </div>
       </div>
 
+      {/* Autocomplete Finished Good */}
       <div className="mb-4 relative">
         <label className="block text-sm font-semibold mb-1">Buscar Finished Good</label>
         <input
