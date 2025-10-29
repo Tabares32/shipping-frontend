@@ -134,7 +134,7 @@ const RetainedOrders = () => {
       rawScanText: `${selectedRetention.invoice} Retained`,
       invoice: selectedRetention.invoice,
       order: selectedRetention.invoice ? selectedRetention.invoice.replace(/U$/, '') : '',
-      lineNumber: (Array.isArray(fedexOrders) ? fedexOrders.length : 0) + 1,
+      lineNumber: selectedRetention.lineCount,
       finishedGood: selectedRetention.finishedGood,
       finishedGoodObject: null,
       observation: '',
