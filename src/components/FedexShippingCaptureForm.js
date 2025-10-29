@@ -97,7 +97,7 @@ const FedexShippingCaptureForm = () => {
   const handleShipmentDateChange = (val) => {
     setShipmentDate(val);
     if (val) setStorage('fedexShipmentDate', val);
-    else setStorage('fedexShipmentDate', ''); // allow clearing if user intentionally clears
+    else setStorage('fedexShipmentDate', '');
   };
 
   const createEntry = () => ({
@@ -205,7 +205,7 @@ const FedexShippingCaptureForm = () => {
   };
 
   return (
-    <div className="w-full max-w-5xl mx-auto p-8 bg-white rounded-xl shadow-lg">
+    <div className="w-full max-w-6xl mx-auto p-10 bg-gradient-to-br from-gray-50 to-white rounded-2xl shadow-2xl border border-gray-200">
       <h2 className="text-2xl font-bold mb-4 text-center">Captura de Envíos Fedex</h2>
 
       {message && <div className="mb-4 text-center text-green-700">{message}</div>}
