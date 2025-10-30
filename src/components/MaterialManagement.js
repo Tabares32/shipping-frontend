@@ -11,11 +11,7 @@ const MaterialManagement = () => {
   const [editingMaterial, setEditingMaterial] = useState(null);
 
   useEffect(() => {
-    const stored =
-      getStorage('materialsBOM') ||
-      getStorage('materials') ||
-      mockMaterials ||
-      [];
+    const stored = getStorage('material_bom') || mockMaterials || [];
     setMaterials(Array.isArray(stored) ? stored : []);
   }, []);
 
@@ -41,8 +37,7 @@ const MaterialManagement = () => {
     };
     const updatedMaterials = [...materials, newMaterial];
 
-    setStorage('materialsBOM', updatedMaterials);
-    setStorage('materials', updatedMaterials);
+    setStorage('material_bom', updatedMaterials);
     setMaterials(updatedMaterials);
 
     try {
@@ -73,8 +68,7 @@ const MaterialManagement = () => {
       material.materialId === editingMaterial.materialId ? editingMaterial : material
     );
 
-    setStorage('materialsBOM', updatedMaterials);
-    setStorage('materials', updatedMaterials);
+    setStorage('material_bom', updatedMaterials);
     setMaterials(updatedMaterials);
 
     try {
@@ -98,8 +92,7 @@ const MaterialManagement = () => {
 
     const updatedMaterials = materials.filter(material => material.materialId !== materialId);
 
-    setStorage('materialsBOM', updatedMaterials);
-    setStorage('materials', updatedMaterials);
+    setStorage('material_bom', updatedMaterials);
     setMaterials(updatedMaterials);
 
     try {
@@ -125,7 +118,7 @@ const MaterialManagement = () => {
             <label className="block text-gray-700 text-sm font-semibold mb-2">ID Material</label>
             <input
               type="text"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black transition"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg"
               value={editingMaterial ? editingMaterial.materialId : newMaterialId}
               onChange={(e) =>
                 editingMaterial
@@ -139,7 +132,7 @@ const MaterialManagement = () => {
             <label className="block text-gray-700 text-sm font-semibold mb-2">Nombre</label>
             <input
               type="text"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black transition"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg"
               value={editingMaterial ? editingMaterial.name : newMaterialName}
               onChange={(e) =>
                 editingMaterial
@@ -152,7 +145,7 @@ const MaterialManagement = () => {
             <label className="block text-gray-700 text-sm font-semibold mb-2">Stock</label>
             <input
               type="number"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black transition"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg"
               value={editingMaterial ? editingMaterial.stock : newMaterialStock}
               onChange={(e) =>
                 editingMaterial
@@ -168,13 +161,13 @@ const MaterialManagement = () => {
           <div className="flex justify-end space-x-4">
             <button
               onClick={handleSaveEdit}
-              className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors duration-300 text-md font-semibold shadow-md"
+              className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
             >
               Guardar Cambios
             </button>
             <button
               onClick={handleCancelEdit}
-              className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition-colors duration-300 text-md font-semibold shadow-md"
+              className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600"
             >
               Cancelar
             </button>
@@ -182,7 +175,7 @@ const MaterialManagement = () => {
         ) : (
           <button
             onClick={handleAddMaterial}
-            className="w-full bg-black text-white py-2 rounded-lg hover:bg-gray-800 transition-colors duration-300 text-md font-semibold shadow-md"
+            className="w-full bg-black text-white py-2 rounded-lg hover:bg-gray-800"
           >
             Agregar Material
           </button>
@@ -194,29 +187,29 @@ const MaterialManagement = () => {
         <table className="min-w-full bg-white border border-gray-200 rounded-lg shadow-sm">
           <thead className="bg-gray-100">
             <tr>
-              <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider border-b">ID Material</th>
-              <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider border-b">Nombre</th>
-              <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider border-b">Stock</th>
-              <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider border-b">Acciones</th>
+              <th className="py-3 px-4 text-left">ID Material</th>
+              <th className="py-3 px-4 text-left">Nombre</th>
+              <th className="py-3 px-4 text-left">Stock</th>
+              <th className="py-3 px-4 text-left">Acciones</th>
             </tr>
           </thead>
           <tbody>
             {materials.length > 0 ? (
               materials.map((material) => (
-                <tr key={material.materialId} className="border-b border-gray-200 hover:bg-gray-50 transition-colors duration-150">
-                  <td className="py-3 px-4 text-gray-800">{material.materialId}</td>
-                  <td className="py-3 px-4 text-gray-800">{material.name}</td>
-                  <td className="py-3 px-4 text-gray-800">{material.stock}</td>
+                <tr key={material.materialId} className="border-b hover:bg-gray-50">
+                  <td className="py-3 px-4">{material.materialId}</td>
+                  <td className="py-3 px-4">{material.name}</td>
+                  <td className="py-3 px-4">{material.stock}</td>
                   <td className="py-3 px-4">
                     <button
                       onClick={() => handleEditClick(material)}
-                      className="bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700 transition-colors duration-300 text-sm mr-2"
+                      className="bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700 mr-2"
                     >
                       Editar
                     </button>
                     <button
                       onClick={() => handleRemoveMaterial(material.materialId)}
-                      className="bg-red-500 text-white px-3 py-1 rounded-md hover:bg-red-600 transition-colors duration-300 text-sm"
+                      className="bg-red-500 text-white px-3 py-1 rounded-md hover:bg-red-600"
                     >
                       Eliminar
                     </button>
@@ -225,7 +218,9 @@ const MaterialManagement = () => {
               ))
             ) : (
               <tr>
-                <td colSpan="4" className="py-4 text-center text-gray-500">No hay materiales registrados.</td>
+                <td colSpan="4" className="py-4 text-center text-gray-500">
+                  No hay materiales registrados.
+                </td>
               </tr>
             )}
           </tbody>
