@@ -13,7 +13,7 @@ const FinishedGoodManagement = () => {
 
   useEffect(() => {
     const storedFinishedGoods = getStorage('finished_goods') || mockFinishedGoods;
-    const storedMaterials = getStorage('materialsBOM') || getStorage('materials') || [];
+    const storedMaterials = getStorage('material_bom') || getStorage('materials') || [];
     setFinishedGoods(Array.isArray(storedFinishedGoods) ? storedFinishedGoods : []);
     setAvailableMaterials(Array.isArray(storedMaterials) ? storedMaterials : []);
     initializeBOMSlots();
