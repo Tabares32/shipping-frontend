@@ -24,8 +24,7 @@ const App = () => {
     const token = localStorage.getItem("authToken");
     const user = localStorage.getItem("currentUser");
     if (token && user) {
-      // No restaurar sesión automáticamente
-      setCurrentUser(null);
+      setCurrentUser(null); // No restaurar sesión automáticamente
     }
   }, []);
 
@@ -40,12 +39,20 @@ const App = () => {
         setIsSyncing(true);
         await initStorageSync(token, [
           "finished_goods",
-          "fedexOrders",
-          "fedexShippingRecords",
+          "material_bom",
+          "fedex_orders",
+          "usps_orders",
+          "fedex_shipping_records",
           "observations",
-          "inventoryCuts",
-          "retainedOrders"
+          "invoice_history",
+          "invoice_search",
+          "daily_report",
+          "cuts_report",
+          "retained_orders",
+          "users",
+          "part_numbers"
         ]);
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Retraso visual
         console.log("✅ Sincronización inicial completada");
       } catch (error) {
         console.warn("⚠️ Error en sincronización inicial:", error);
@@ -53,6 +60,18 @@ const App = () => {
         setIsSyncing(false);
       }
     })();
+
+    // Sincronización automática cada minuto
+    const syncInterval = setInterval(async () => {
+      try {
+        console.log("🔄 Verificando cambios en el backend...");
+        await syncFromBackend();
+      } catch (err) {
+        console.warn("⚠️ Error al sincronizar automáticamente:", err);
+      }
+    }, 60000); // cada 60 segundos
+
+    return () => clearInterval(syncInterval);
   }, [currentUser]);
 
   const resetActivityTimer = () => {
@@ -102,12 +121,20 @@ const App = () => {
       setIsSyncing(true);
       await initStorageSync(localStorage.getItem("authToken"), [
         "finished_goods",
-        "fedexOrders",
-        "fedexShippingRecords",
+        "material_bom",
+        "fedex_orders",
+        "usps_orders",
+        "fedex_shipping_records",
         "observations",
-        "inventoryCuts",
-        "retainedOrders"
+        "invoice_history",
+        "invoice_search",
+        "daily_report",
+        "cuts_report",
+        "retained_orders",
+        "users",
+        "part_numbers"
       ]);
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Retraso visual
       console.log("✅ Datos sincronizados tras inicio de sesión.");
     } catch (e) {
       console.warn("No se pudo sincronizar tras login:", e);
