@@ -69,7 +69,13 @@ export async function syncToBackend() {
   const data = {};
 
   // ✅ incluir claves específicas que quieres sincronizar
-  const keysToSync = ["users", "materialsBOM", "observations", "finishedGoods", "partNumbers"];
+  const keysToSync = [
+    "users",
+    "material_bom",
+    "observations",
+    "finished_goods",
+    "part_numbers"
+  ];
   for (const key of keysToSync) {
     const value = getStorage(key);
     if (Array.isArray(value) && value.length > 0) {
