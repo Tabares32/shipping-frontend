@@ -12,14 +12,8 @@ const FinishedGoodManagement = () => {
   const [availableMaterials, setAvailableMaterials] = useState([]);
 
   useEffect(() => {
-    const storedFinishedGoods =
-      getStorage('finished_goods') ||
-      getStorage('finishedGoods') ||
-      mockFinishedGoods;
-    const storedMaterials =
-      getStorage('materialsBOM') ||
-      getStorage('materials') ||
-      [];
+    const storedFinishedGoods = getStorage('finished_goods') || mockFinishedGoods;
+    const storedMaterials = getStorage('materialsBOM') || getStorage('materials') || [];
     setFinishedGoods(Array.isArray(storedFinishedGoods) ? storedFinishedGoods : []);
     setAvailableMaterials(Array.isArray(storedMaterials) ? storedMaterials : []);
     initializeBOMSlots();
@@ -76,8 +70,7 @@ const FinishedGoodManagement = () => {
     };
 
     const updated = [...finishedGoods, newFG];
-    setStorage('Finished_Goods', updated);
-    setStorage('finishedGoods', updated);
+    setStorage('finished_goods', updated);
     setFinishedGoods(updated);
     try {
       await syncToBackend();
@@ -94,8 +87,7 @@ const FinishedGoodManagement = () => {
 
   const handleRemoveFinishedGood = async (fgToRemove) => {
     const updated = finishedGoods.filter((f) => f.finishedGood !== fgToRemove);
-    setStorage('Finished_Goods', updated);
-    setStorage('finishedGoods', updated);
+    setStorage('finished_goods', updated);
     setFinishedGoods(updated);
     try {
       await syncToBackend();

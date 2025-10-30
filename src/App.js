@@ -64,11 +64,8 @@ const App = () => {
   };
 
   const performLogout = (isManual = false) => {
-    // eliminar únicamente el token y la marca de sincronización
     localStorage.removeItem("authToken");
     clearSyncState();
-
-    // mantener currentUser en localStorage; solo limpiamos el estado en memoria
     setCurrentUser(null);
     clearTimeout(activityTimer.current);
 
@@ -103,7 +100,14 @@ const App = () => {
 
     try {
       setIsSyncing(true);
-      await initStorageSync(localStorage.getItem("authToken"));
+      await initStorageSync(localStorage.getItem("authToken"), [
+        "finished_goods",
+        "fedexOrders",
+        "fedexShippingRecords",
+        "observations",
+        "inventoryCuts",
+        "retainedOrders"
+      ]);
       console.log("✅ Datos sincronizados tras inicio de sesión.");
     } catch (e) {
       console.warn("No se pudo sincronizar tras login:", e);
