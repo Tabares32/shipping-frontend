@@ -20,7 +20,7 @@ const FedexShippingCaptureForm = () => {
   const [selectedObservation, setSelectedObservation] = useState('');
   const [trackingNumber, setTrackingNumber] = useState('');
   const [lineNumber, setLineNumber] = useState(1);
-  const [entries, setEntries] = useState([]); // guarda en 'fedexOrders'
+  const [entries, setEntries] = useState([]); // guarda en 'fedex_orders'
   const [message, setMessage] = useState('');
 
   const fgInputRef = useRef(null);
@@ -29,7 +29,7 @@ const FedexShippingCaptureForm = () => {
   useEffect(() => {
     const fgs = getStorage('finished_goods') || mockFinishedGoods || [];
     const obs = getStorage('observations') || getStorage('observations') || mockObservations;
-    const savedEntries = getStorage('fedexOrders') || [];
+    const savedEntries = getStorage('fedex_orders') || [];
     const savedShipmentDate = getStorage('fedexShipmentDate') || getStorage('shipmentDate') || '';
 
     setFinishedGoodsList(Array.isArray(fgs) ? fgs : []);
@@ -115,11 +115,11 @@ const FedexShippingCaptureForm = () => {
   });
 
   const persistEntries = async (newEntries) => {
-    setStorage('fedexOrders', newEntries);
+    setStorage('fedex_orders', newEntries);
     try {
       await syncToBackend();
     } catch (err) {
-      console.warn('Error sincronizando fedexOrders:', err);
+      console.warn('Error sincronizando fedex_orders:', err);
     }
     setEntries(newEntries);
   };
@@ -166,7 +166,7 @@ const FedexShippingCaptureForm = () => {
     }
 
     // Recargar desde localStorage para reflejar en UI inmediatamente
-    const refreshed = getStorage('fedexOrders') || [];
+    const refreshed = getStorage('fedex_orders') || [];
     setEntries(Array.isArray(refreshed) ? refreshed : []);
     setLineNumber((Array.isArray(refreshed) ? refreshed.length : 0) + 1);
 

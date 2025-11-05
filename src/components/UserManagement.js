@@ -41,8 +41,15 @@ const UserManagement = () => {
         setUsers(getStorage("users") || []);
         return;
       }
-      setUsers(data);
-      setStorage("users", data);
+
+      if (data.length > 0) {
+        setUsers(data);
+        setStorage("users", data);
+      } else {
+        console.warn("⚠️ Backend vacío, se conserva copia local");
+        const localUsers = getStorage("users") || [];
+        setUsers(localUsers);
+      }
     } catch (err) {
       console.error("Error cargando usuarios:", err);
       setError("Error de conexión con el servidor");
@@ -102,6 +109,9 @@ const UserManagement = () => {
           ? `Usuario actualizado correctamente ✅`
           : `Usuario "${username}" creado correctamente ✅`
       );
+
+      setTimeout(() => setSuccess(""), 3000); // Oculta el mensaje después de 3 segundos
+
       setUsername("");
       setPassword("");
       setRole("user");
@@ -135,6 +145,7 @@ const UserManagement = () => {
       await syncToBackend();
 
       setSuccess("Usuario eliminado correctamente ✅");
+      setTimeout(() => setSuccess(""), 3000);
     } catch (err) {
       console.error("Error eliminando usuario:", err);
       setError("Error de conexión con el servidor");
