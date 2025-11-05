@@ -112,36 +112,36 @@ const App = () => {
     }
   }, [currentUser]);
 
-  const handleLoginSuccess = async (user) => {
-    setCurrentUser(user);
-    setCurrentPage("fedexShippingCapture");
-    resetActivityTimer();
+const handleLoginSuccess = async ({ token, username, role }) => {
+  setCurrentUser({ username, role });
+  setCurrentPage("fedexShippingCapture");
+  resetActivityTimer();
 
-    try {
-      setIsSyncing(true);
-      await initStorageSync(localStorage.getItem("authToken"), [
-        "finished_goods",
-        "material_bom",
-        "fedex_orders",
-        "usps_orders",
-        "fedex_shipping_records",
-        "observations",
-        "invoice_history",
-        "invoice_search",
-        "daily_report",
-        "cuts_report",
-        "retained_orders",
-        "users",
-        "part_numbers"
-      ]);
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Retraso visual
-      console.log("✅ Datos sincronizados tras inicio de sesión.");
-    } catch (e) {
-      console.warn("No se pudo sincronizar tras login:", e);
-    } finally {
-      setIsSyncing(false);
-    }
-  };
+  try {
+    setIsSyncing(true);
+    await initStorageSync(token, [
+      "finished_goods",
+      "material_bom",
+      "fedex_orders",
+      "usps_orders",
+      "fedex_shipping_records",
+      "observations",
+      "invoice_history",
+      "invoice_search",
+      "daily_report",
+      "cuts_report",
+      "retained_orders",
+      "users",
+      "part_numbers"
+    ]);
+    await new Promise(resolve => setTimeout(resolve, 1000)); // Retraso visual
+    console.log("✅ Datos sincronizados tras inicio de sesión.");
+  } catch (e) {
+    console.warn("No se pudo sincronizar tras login:", e);
+  } finally {
+    setIsSyncing(false);
+  }
+};
 
   const handleNavigate = (page) => {
     setCurrentPage(page);

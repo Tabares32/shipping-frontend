@@ -46,15 +46,25 @@ const AuthLogin = ({ onLoginSuccess }) => {
         return;
       }
 
-      if (data.token) {
-        localStorage.setItem("authToken", data.token);
-      }
-      if (data.username) {
-        localStorage.setItem(
-          "currentUser",
-          JSON.stringify({ username: data.username, role: data.role || "user" })
-        );
-      }
+if (data.token && data.username) {
+  localStorage.setItem("authToken", data.token);
+  localStorage.setItem(
+    "currentUser",
+    JSON.stringify({ username: data.username, role: data.role || "user" })
+  );
+
+  const info = {
+    username: data.username,
+    role: data.role || "user",
+    expiry: data.expiry || null,
+    signature: data.signature || null,
+    ip: data.ip || null,
+    userAgent: data.userAgent || navigator.userAgent,
+  };
+  setSessionInfo(info);
+
+  if (typeof onLoginSuccess === "function") onLoginSuccess({ ...info, token: data.token });
+}
 
       const info = {
         username: data.username || username,
