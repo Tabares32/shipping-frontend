@@ -118,7 +118,7 @@ const FinishedGoodManagement = () => {
           </div>
 
           <div>
-            <label className="block text-gray-700 text-sm font-semibold mb-2">Tipo (Front/Rear)</label>
+            <label className="block text-gray-700 text-sm font-semibold mb-2">Tipo (Front/Rear/Remake)</label>
             <select
               className="w-full px-4 py-2 border border-gray-300 rounded-lg"
               value={newType}
@@ -127,6 +127,7 @@ const FinishedGoodManagement = () => {
               <option value="">Selecciona</option>
               <option value="Front">Front</option>
               <option value="Rear">Rear</option>
+	      <option value="Remake">Remake</option>
             </select>
           </div>
 
@@ -141,6 +142,7 @@ const FinishedGoodManagement = () => {
               <option value="Pickup">Pickup</option>
               <option value="Sedan">Sedan</option>
               <option value="SUV">SUV</option>
+	      <option value="Partes">Partes</option>
             </select>
           </div>
         </div>
