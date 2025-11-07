@@ -4,22 +4,22 @@ import DashboardHeader from "./components/DashboardHeader";
 import DashboardSidebar from "./components/DashboardSidebar";
 import PublicDashboard from "./components/PublicDashboard";
 import UserManagement from "./components/UserManagement";
+import NormalDashboard from "./components/NormalDashboard";
 import {
   initStorageSync,
   syncFromBackend,
-  setStorage,
   clearSyncState,
 } from "./utils/storage";
 
 const App = () => {
   const [currentUser, setCurrentUser] = useState(null);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [currentPage, setCurrentPage] = useState("fedexShippingCapture");
+  const [mainPage, setMainPage] = useState("fedexShippingCapture");
+  const [subPage, setSubPage] = useState(null);
   const activityTimer = useRef(null);
   const manualLogoutFlag = useRef(false);
   const INACTIVITY_TIMEOUT = 10 * 60 * 1000;
 
-  // No iniciar sesión automáticamente
   useEffect(() => {
     const token = localStorage.getItem("authToken");
     const user = localStorage.getItem("currentUser");
@@ -28,7 +28,6 @@ const App = () => {
     }
   }, []);
 
-  // Sincronización inicial después de login
   useEffect(() => {
     if (!currentUser) return;
     const token = localStorage.getItem("authToken");
@@ -52,7 +51,7 @@ const App = () => {
           "users",
           "part_numbers"
         ]);
-        await new Promise(resolve => setTimeout(resolve, 1000)); // Retraso visual
+        await new Promise(resolve => setTimeout(resolve, 1000));
         console.log("✅ Sincronización inicial completada");
       } catch (error) {
         console.warn("⚠️ Error en sincronización inicial:", error);
@@ -61,7 +60,6 @@ const App = () => {
       }
     })();
 
-    // Sincronización automática cada minuto
     const syncInterval = setInterval(async () => {
       try {
         console.log("🔄 Verificando cambios en el backend...");
@@ -69,7 +67,7 @@ const App = () => {
       } catch (err) {
         console.warn("⚠️ Error al sincronizar automáticamente:", err);
       }
-    }, 60000); // cada 60 segundos
+    }, 60000);
 
     return () => clearInterval(syncInterval);
   }, [currentUser]);
@@ -112,49 +110,54 @@ const App = () => {
     }
   }, [currentUser]);
 
-const handleLoginSuccess = async ({ token, username, role }) => {
-  setCurrentUser({ username, role });
-  setCurrentPage("fedexShippingCapture");
-  resetActivityTimer();
-
-  try {
-    setIsSyncing(true);
-    await initStorageSync(token, [
-      "finished_goods",
-      "material_bom",
-      "fedex_orders",
-      "usps_orders",
-      "fedex_shipping_records",
-      "observations",
-      "invoice_history",
-      "invoice_search",
-      "daily_report",
-      "cuts_report",
-      "retained_orders",
-      "users",
-      "part_numbers"
-    ]);
-    await new Promise(resolve => setTimeout(resolve, 1000)); // Retraso visual
-    console.log("✅ Datos sincronizados tras inicio de sesión.");
-  } catch (e) {
-    console.warn("No se pudo sincronizar tras login:", e);
-  } finally {
-    setIsSyncing(false);
-  }
-};
-
-  const handleNavigate = (page) => {
-    setCurrentPage(page);
+  const handleLoginSuccess = async ({ token, username, role }) => {
+    setCurrentUser({ username, role });
+    setMainPage("fedexShippingCapture");
     resetActivityTimer();
+
+    try {
+      setIsSyncing(true);
+      await initStorageSync(token, [
+        "finished_goods",
+        "material_bom",
+        "fedex_orders",
+        "usps_orders",
+        "fedex_shipping_records",
+        "observations",
+        "invoice_history",
+        "invoice_search",
+        "daily_report",
+        "cuts_report",
+        "retained_orders",
+        "users",
+        "part_numbers"
+      ]);
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      console.log("✅ Datos sincronizados tras inicio de sesión.");
+    } catch (e) {
+      console.warn("No se pudo sincronizar tras login:", e);
+    } finally {
+      setIsSyncing(false);
+    }
   };
 
-  const handleNavigateToUserManagement = () => {
-    if (currentUser?.role === "admin") {
-      setCurrentPage("userManagement");
-      resetActivityTimer();
+  const handleNavigate = (page) => {
+    if (page === "userManagement") {
+      if (currentUser?.role === "admin") {
+        setMainPage("userManagement");
+      } else {
+        alert("Acceso denegado: solo administradores.");
+        return;
+      }
+    } else if (["inventoryCapture", "shippingRegister"].includes(page)) {
+      setMainPage("normalDashboard");
+      setSubPage(page);
     } else {
-      alert("Acceso denegado: solo administradores.");
+      setMainPage(page);
+      setSubPage(null);
     }
+
+    resetActivityTimer();
   };
 
   if (!currentUser) {
@@ -177,18 +180,20 @@ const handleLoginSuccess = async ({ token, username, role }) => {
       <DashboardHeader
         currentUser={currentUser}
         onLogout={handleLogoutButtonClick}
-        onNavigateToUserManagement={handleNavigateToUserManagement}
+        onNavigateToUserManagement={() => handleNavigate("userManagement")}
       />
       <div className="flex flex-1 overflow-hidden">
         <DashboardSidebar
-          currentPage={currentPage}
+          currentPage={mainPage}
           onNavigate={handleNavigate}
           currentUser={currentUser}
         />
-        {currentPage === "userManagement" ? (
+        {mainPage === "userManagement" ? (
           <UserManagement />
+        ) : mainPage === "normalDashboard" ? (
+          <NormalDashboard currentPage={subPage} />
         ) : (
-          <PublicDashboard currentPage={currentPage} currentUser={currentUser} />
+          <PublicDashboard currentPage={mainPage} currentUser={currentUser} />
         )}
       </div>
     </div>
