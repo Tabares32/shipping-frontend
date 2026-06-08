@@ -2,9 +2,6 @@ const BACKEND =
   process.env.REACT_APP_BACKEND_URL ||
   "https://shipping-backend-kgm5.onrender.com";
 
-/**
- * ✅ Leer datos desde localStorage con JSON.parse seguro
- */
 export function getStorage(key) {
   try {
     return JSON.parse(localStorage.getItem(key));
@@ -13,9 +10,6 @@ export function getStorage(key) {
   }
 }
 
-/**
- * ✅ Guardar datos en localStorage
- */
 export function setStorage(key, value) {
   if (value === null) {
     localStorage.removeItem(key);
@@ -25,63 +19,69 @@ export function setStorage(key, value) {
 }
 
 /**
- * ✅ Cargar datos desde el backend (.json) y guardar en localStorage
- * ⚠️ Conserva datos locales si el backend devuelve arrays vacíos
+ * Descarga los datos del backend y los guarda en localStorage.
+ * Requiere token válido — nunca expone contraseñas (el backend las filtra).
  */
 export async function syncFromBackend() {
+  const token = localStorage.getItem("authToken");
+  if (!token) return;
+
   try {
-    const res = await fetch(`${BACKEND}/api/sync/data`);
+    const res = await fetch(`${BACKEND}/api/sync/data`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      console.warn("⚠️ syncFromBackend: respuesta no OK", res.status);
+      return;
+    }
     const data = await res.json();
 
     Object.entries(data).forEach(([key, value]) => {
-      if (Array.isArray(value)) {
-        if (value.length > 0) {
-          setStorage(key, value); // ✅ guardar si hay datos
-        } else {
-          const localCopy = getStorage(key);
-          if (Array.isArray(localCopy) && localCopy.length > 0) {
-            console.warn(`⚠️ ${key} vacío en backend, se conserva copia local`);
-          } else {
-            console.warn(`⚠️ ${key} vacío y sin copia local, se omite`);
-          }
-        }
+      if (!Array.isArray(value)) return;
+      if (value.length > 0) {
+        setStorage(key, value);
       } else {
-        console.warn(`⚠️ ${key} no es un array, se omite`);
+        const local = getStorage(key);
+        if (!Array.isArray(local) || local.length === 0) {
+          console.warn(`⚠️ ${key}: vacío en backend y sin copia local`);
+        }
       }
     });
-
-    console.log("✅ Datos cargados desde el backend");
+    console.log("✅ syncFromBackend completado");
   } catch (err) {
-    console.error("❌ Error al cargar datos del backend:", err);
+    console.error("❌ syncFromBackend error:", err);
   }
 }
 
 /**
- * ✅ Subir datos locales al backend para sincronizar con los archivos .json
+ * Sube datos locales al backend.
  */
 export async function syncToBackend() {
   const token = localStorage.getItem("authToken");
   if (!token) {
-    console.warn("❌ No hay token para sincronizar");
+    console.warn("❌ syncToBackend: sin token");
     return;
   }
 
-  const data = {};
-
-  // ✅ incluir claves específicas que quieres sincronizar
   const keysToSync = [
-    "users",
     "material_bom",
     "observations",
     "finished_goods",
-    "part_numbers"
+    "part_numbers",
+    "fedex_orders",
+    "usps_orders",
+    "retained_orders",
+    "invoice_history",
+    "invoice_search",
+    "daily_report",
+    "cuts_report",
   ];
+
+  const payload = {};
   for (const key of keysToSync) {
-    const value = getStorage(key);
-    if (Array.isArray(value) && value.length > 0) {
-      data[key] = value;
-    } else {
-      console.warn(`⚠️ ${key} vacío o no válido, no se sincroniza`);
+    const val = getStorage(key);
+    if (Array.isArray(val) && val.length > 0) {
+      payload[key] = val;
     }
   }
 
@@ -92,36 +92,32 @@ export async function syncToBackend() {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify(data),
+      body: JSON.stringify(payload),
     });
-
     const result = await res.json();
     if (!res.ok) {
-      console.error("❌ Error durante sincronización:", result);
+      console.error("❌ syncToBackend error:", result);
     } else {
-      console.log("✅ Datos sincronizados con el backend:", result);
+      console.log("✅ syncToBackend OK:", result);
     }
   } catch (err) {
-    console.error("❌ Error de red al sincronizar:", err);
+    console.error("❌ syncToBackend error de red:", err);
   }
 }
 
 /**
- * ✅ Inicializar sesión y sincronización al iniciar sesión
- * ⚠️ Solo sincroniza si no se ha hecho ya en esta sesión
+ * Inicializa la sincronización al iniciar sesión.
+ * Solo descarga una vez por sesión.
  */
 export async function initStorageSync(token) {
   localStorage.setItem("authToken", token);
-
   if (!localStorage.getItem("syncDone")) {
     await syncFromBackend();
     localStorage.setItem("syncDone", "true");
   }
 }
 
-/**
- * ✅ Limpiar marca de sincronización al cerrar sesión
- */
+/** Limpia la marca de sincronización al cerrar sesión. */
 export function clearSyncState() {
   localStorage.removeItem("syncDone");
 }
