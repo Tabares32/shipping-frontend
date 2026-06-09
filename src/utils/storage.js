@@ -1,7 +1,13 @@
-const BACKEND =
+/**
+ * storage.js — Capa de datos
+ * Lee/escribe en MongoDB via API. localStorage solo como caché local.
+ */
+
+export const BACKEND =
   process.env.REACT_APP_BACKEND_URL ||
   "https://shipping-backend-kgm5.onrender.com";
 
+// ── Caché local ────────────────────────────────────────────────────────────────
 export function getStorage(key) {
   try {
     return JSON.parse(localStorage.getItem(key));
@@ -11,113 +17,158 @@ export function getStorage(key) {
 }
 
 export function setStorage(key, value) {
-  if (value === null) {
-    localStorage.removeItem(key);
-  } else {
-    localStorage.setItem(key, JSON.stringify(value));
+  if (value === null) localStorage.removeItem(key);
+  else localStorage.setItem(key, JSON.stringify(value));
+}
+
+function getToken() {
+  return localStorage.getItem("authToken");
+}
+
+function authHeaders() {
+  return {
+    "Content-Type": "application/json",
+    Authorization:  `Bearer ${getToken()}`,
+  };
+}
+
+// ── Rol del usuario actual ─────────────────────────────────────────────────────
+export function getCurrentRole() {
+  try {
+    const u = JSON.parse(localStorage.getItem("currentUser") || "{}");
+    return u.role || "viewer";
+  } catch {
+    return "viewer";
   }
 }
 
-/**
- * Descarga los datos del backend y los guarda en localStorage.
- * Requiere token válido — nunca expone contraseñas (el backend las filtra).
- */
-export async function syncFromBackend() {
-  const token = localStorage.getItem("authToken");
-  if (!token) return;
+export function canEdit() {
+  return ["admin", "editor"].includes(getCurrentRole());
+}
 
+// ── Sync completo desde MongoDB ────────────────────────────────────────────────
+export async function syncFromBackend() {
+  const token = getToken();
+  if (!token) return;
   try {
     const res = await fetch(`${BACKEND}/api/sync/data`, {
       headers: { Authorization: `Bearer ${token}` },
     });
-    if (!res.ok) {
-      console.warn("⚠️ syncFromBackend: respuesta no OK", res.status);
-      return;
-    }
+    if (!res.ok) { console.warn("syncFromBackend:", res.status); return; }
     const data = await res.json();
-
     Object.entries(data).forEach(([key, value]) => {
-      if (!Array.isArray(value)) return;
-      if (value.length > 0) {
+      if (Array.isArray(value) && value.length > 0) {
         setStorage(key, value);
-      } else {
-        const local = getStorage(key);
-        if (!Array.isArray(local) || local.length === 0) {
-          console.warn(`⚠️ ${key}: vacío en backend y sin copia local`);
-        }
       }
     });
     console.log("✅ syncFromBackend completado");
   } catch (err) {
-    console.error("❌ syncFromBackend error:", err);
+    console.error("❌ syncFromBackend:", err);
   }
 }
 
-/**
- * Sube datos locales al backend.
- */
+// ── Push de datos locales al backend ──────────────────────────────────────────
 export async function syncToBackend() {
-  const token = localStorage.getItem("authToken");
-  if (!token) {
-    console.warn("❌ syncToBackend: sin token");
-    return;
-  }
+  const token = getToken();
+  if (!token || !canEdit()) return;
 
-  const keysToSync = [
-    "material_bom",
-    "observations",
-    "finished_goods",
-    "part_numbers",
-    "fedex_orders",
-    "usps_orders",
-    "retained_orders",
-    "invoice_history",
-    "invoice_search",
-    "daily_report",
-    "cuts_report",
+  const keys = [
+    "fedex_orders","usps_orders","retained_orders","finished_goods",
+    "material_bom","observations","part_numbers","invoice_search",
+    "invoice_history","cuts_report","daily_report",
   ];
-
   const payload = {};
-  for (const key of keysToSync) {
-    const val = getStorage(key);
-    if (Array.isArray(val) && val.length > 0) {
-      payload[key] = val;
-    }
+  for (const k of keys) {
+    const v = getStorage(k);
+    if (Array.isArray(v) && v.length > 0) payload[k] = v;
   }
-
   try {
     const res = await fetch(`${BACKEND}/api/sync/upload`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(payload),
+      method:  "POST",
+      headers: authHeaders(),
+      body:    JSON.stringify(payload),
     });
-    const result = await res.json();
-    if (!res.ok) {
-      console.error("❌ syncToBackend error:", result);
-    } else {
-      console.log("✅ syncToBackend OK:", result);
-    }
+    if (!res.ok) console.error("syncToBackend error:", await res.text());
+    else console.log("✅ syncToBackend OK");
   } catch (err) {
-    console.error("❌ syncToBackend error de red:", err);
+    console.error("❌ syncToBackend:", err);
   }
 }
 
-/**
- * Inicializa la sincronización al iniciar sesión.
- * Solo descarga una vez por sesión.
- */
+// ── Init sync tras login ───────────────────────────────────────────────────────
 export async function initStorageSync(token) {
   localStorage.setItem("authToken", token);
-  if (!localStorage.getItem("syncDone")) {
-    await syncFromBackend();
-    localStorage.setItem("syncDone", "true");
-  }
+  await syncFromBackend();
 }
 
-/** Limpia la marca de sincronización al cerrar sesión. */
 export function clearSyncState() {
   localStorage.removeItem("syncDone");
 }
+
+// ── API helpers por colección ──────────────────────────────────────────────────
+async function apiGet(path) {
+  const res = await fetch(`${BACKEND}${path}`, { headers: { Authorization: `Bearer ${getToken()}` } });
+  if (!res.ok) throw new Error(`GET ${path} → ${res.status}`);
+  return res.json();
+}
+
+async function apiPost(path, body) {
+  const res = await fetch(`${BACKEND}${path}`, {
+    method: "POST", headers: authHeaders(), body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`POST ${path} → ${res.status}`);
+  return res.json();
+}
+
+async function apiPut(path, body) {
+  const res = await fetch(`${BACKEND}${path}`, {
+    method: "PUT", headers: authHeaders(), body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`PUT ${path} → ${res.status}`);
+  return res.json();
+}
+
+async function apiDelete(path) {
+  const res = await fetch(`${BACKEND}${path}`, {
+    method: "DELETE", headers: { Authorization: `Bearer ${getToken()}` },
+  });
+  if (!res.ok) throw new Error(`DELETE ${path} → ${res.status}`);
+  return res.json();
+}
+
+// ── USPS orders ────────────────────────────────────────────────────────────────
+export const uspsApi = {
+  list:   ()        => apiGet("/api/usps_orders"),
+  create: (record)  => apiPost("/api/usps_orders", record),
+  update: (id, rec) => apiPut(`/api/usps_orders/${id}`, rec),
+  remove: (id)      => apiDelete(`/api/usps_orders/${id}`),
+};
+
+// ── FedEx orders ───────────────────────────────────────────────────────────────
+export const fedexApi = {
+  list:   ()        => apiGet("/api/fedex_orders"),
+  create: (record)  => apiPost("/api/fedex_orders", record),
+  remove: (id)      => apiDelete(`/api/fedex_orders/${id}`),
+};
+
+// ── Retained orders ────────────────────────────────────────────────────────────
+export const retainedApi = {
+  list:   ()        => apiGet("/api/retained_orders"),
+  create: (record)  => apiPost("/api/retained_orders", record),
+  update: (id, rec) => apiPut(`/api/retained_orders/${id}`, rec),
+  remove: (id)      => apiDelete(`/api/retained_orders/${id}`),
+};
+
+// ── Finished goods ─────────────────────────────────────────────────────────────
+export const finishedGoodsApi = {
+  list:   ()        => apiGet("/api/finished_goods"),
+  create: (record)  => apiPost("/api/finished_goods", record),
+  remove: (id)      => apiDelete(`/api/finished_goods/${id}`),
+};
+
+// ── Observations ───────────────────────────────────────────────────────────────
+export const observationsApi = {
+  list:   ()       => apiGet("/api/observations"),
+  create: (record) => apiPost("/api/observations", record),
+  remove: (id)     => apiDelete(`/api/observations/${id}`),
+};
