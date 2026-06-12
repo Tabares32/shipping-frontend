@@ -105,7 +105,7 @@ export function clearSyncState() {
   localStorage.removeItem("syncDone");
 }
 
-// ── API helpers por colección ──────────────────────────────────────────────────
+// ── API helpers genéricos ───────────────────────────────────────────────────────
 async function apiGet(path) {
   const res = await fetch(`${BACKEND}${path}`, { headers: { Authorization: `Bearer ${getToken()}` } });
   if (!res.ok) throw new Error(`GET ${path} → ${res.status}`);
@@ -148,6 +148,7 @@ export const uspsApi = {
 export const fedexApi = {
   list:   ()        => apiGet("/api/fedex_orders"),
   create: (record)  => apiPost("/api/fedex_orders", record),
+  update: (id, rec) => apiPut(`/api/fedex_orders/${id}`, rec),
   remove: (id)      => apiDelete(`/api/fedex_orders/${id}`),
 };
 
@@ -163,6 +164,7 @@ export const retainedApi = {
 export const finishedGoodsApi = {
   list:   ()        => apiGet("/api/finished_goods"),
   create: (record)  => apiPost("/api/finished_goods", record),
+  update: (id, rec) => apiPut(`/api/finished_goods/${id}`, rec),
   remove: (id)      => apiDelete(`/api/finished_goods/${id}`),
 };
 
@@ -170,5 +172,14 @@ export const finishedGoodsApi = {
 export const observationsApi = {
   list:   ()       => apiGet("/api/observations"),
   create: (record) => apiPost("/api/observations", record),
+  update: (id, rec)=> apiPut(`/api/observations/${id}`, rec),
   remove: (id)     => apiDelete(`/api/observations/${id}`),
+};
+
+// ── Material BOM ───────────────────────────────────────────────────────────────
+export const materialBomApi = {
+  list:   ()        => apiGet("/api/material_bom"),
+  create: (record)  => apiPost("/api/material_bom", record),
+  update: (id, rec) => apiPut(`/api/material_bom/${id}`, rec),
+  remove: (id)      => apiDelete(`/api/material_bom/${id}`),
 };

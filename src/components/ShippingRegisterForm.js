@@ -1,352 +1,255 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { uspsApi, canEdit } from '../utils/storage';
-
-/**
- * Órdenes para Envío USPS
- * ─────────────────────────────────────────────────────────────────
- * Es un control de BALANCE de dinero:
- *   Balance actual = Σ fondos agregados − Σ costos PO Box/etiquetado − Σ gastos Arizona
- *
- * NO es de captura de paquetes (eso es FedEx).
- * Tipos de movimiento:
- *   - "fondo"     → agrega dinero al balance
- *   - "pobox"     → descuenta (costo de PO Box o etiquetado desde Observaciones FedEx)
- *   - "arizona"   → descuenta (gastos Arizona)
- * ─────────────────────────────────────────────────────────────────
- */
-
-const MOVEMENT_TYPES = [
-  { value: "fondo",   label: "➕ Agregar Fondos",          color: "bg-green-100 text-green-800"  },
-  { value: "pobox",   label: "📦 Costo PO Box / Etiqueta", color: "bg-yellow-100 text-yellow-800"},
-  { value: "arizona", label: "🌵 Gasto Arizona",            color: "bg-orange-100 text-orange-800"},
-];
-
-const fmt = (n) =>
-  new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(Number(n) || 0);
+import React, { useState, useEffect } from 'react';
+import { getStorage, setStorage, syncToBackend } from '../utils/storage';
 
 const ShippingRegisterForm = () => {
-  const [records,  setRecords]  = useState([]);
-  const [loading,  setLoading]  = useState(true);
-  const [saving,   setSaving]   = useState(false);
-  const [message,  setMessage]  = useState({ text: "", type: "" });
-  const editable = canEdit();
+  const [shippingRecords, setShippingRecords] = useState([]);
+  const [invoice, setInvoice] = useState('');
+  const [boxDimension, setBoxDimension] = useState('');
+  const [weight, setWeight] = useState('');
+  const [addedFund, setAddedFund] = useState('');
+  const [cost, setCost] = useState('');
+  const [arizonaExpenditure, setArizonaExpenditure] = useState('');
+  const [message, setMessage] = useState('');
 
-  // Formulario
-  const [movType,      setMovType]      = useState("fondo");
-  const [amount,       setAmount]       = useState("");
-  const [description,  setDescription]  = useState("");
-  const [movDate,      setMovDate]      = useState(() => new Date().toISOString().split("T")[0]);
-  const [invoiceRef,   setInvoiceRef]   = useState("");   // referencia a invoice FedEx si aplica
+  const [showDateModal, setShowDateModal] = useState(false);
+  const [selectedShippingDate, setSelectedShippingDate] = useState('');
 
-  // Eliminar
-  const [delId,        setDelId]        = useState(null);
+  const [recordToDelete, setRecordToDelete] = useState(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  const showMsg = (text, type = "success", ms = 4000) => {
-    setMessage({ text, type });
-    setTimeout(() => setMessage({ text: "", type: "" }), ms);
-  };
-
-  // ── Cargar desde MongoDB ────────────────────────────────────────
-  const loadRecords = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await uspsApi.list();
-      const sorted = [...data].sort((a, b) => new Date(a.date) - new Date(b.date));
-      setRecords(sorted);
-    } catch (err) {
-      console.error(err);
-      showMsg("Error al cargar registros del servidor.", "error");
-    } finally {
-      setLoading(false);
-    }
+  useEffect(() => {
+    const storedRecords = getStorage('uspsOrders') || [];
+    setShippingRecords(Array.isArray(storedRecords) ? storedRecords : []);
   }, []);
 
-  useEffect(() => { loadRecords(); }, [loadRecords]);
+  const handleSaveOrder = () => {
+    setShowDateModal(true);
+  };
 
-  // ── Balance acumulado ───────────────────────────────────────────
-  const balance = records.reduce((acc, r) => {
-    const amt = Number(r.amount) || 0;
-    if (r.type === "fondo")   return acc + amt;
-    if (r.type === "pobox")   return acc - amt;
-    if (r.type === "arizona") return acc - amt;
-    return acc;
-  }, 0);
-
-  // ── Guardar movimiento ──────────────────────────────────────────
-  const handleSave = async () => {
-    if (!editable) { showMsg("No tienes permisos de edición.", "error"); return; }
-    const amt = parseFloat(amount);
-    if (!amount || isNaN(amt) || amt <= 0) {
-      showMsg("Ingresa un monto válido mayor a 0.", "error"); return;
-    }
-    if (!movDate) { showMsg("Selecciona una fecha.", "error"); return; }
-
-    const record = {
-      id:          `usps_${Date.now()}`,
-      type:        movType,
-      amount:      amt,
-      description: description.trim() || MOVEMENT_TYPES.find(m => m.value === movType)?.label || movType,
-      date:        movDate,
-      invoiceRef:  invoiceRef.trim(),
-      captureTime: new Date().toISOString(),
+  const handleConfirmShippingDate = async () => {
+    const now = new Date();
+    const newRecord = {
+      id: Date.now(),
+      invoice,
+      boxDimension,
+      weight: weight !== '' ? parseFloat(weight) : null,
+      shippingDay: selectedShippingDate || now.toLocaleDateString(),
+      captureTime: now.toLocaleTimeString(),
+      addedFund: addedFund !== '' ? parseFloat(addedFund) : 0,
+      cost: cost !== '' ? parseFloat(cost) : 0,
+      arizonaExpenditure: arizonaExpenditure !== '' ? parseFloat(arizonaExpenditure) : 0,
+      balance: (
+        (addedFund !== '' ? parseFloat(addedFund) : 0) -
+        (cost !== '' ? parseFloat(cost) : 0) -
+        (arizonaExpenditure !== '' ? parseFloat(arizonaExpenditure) : 0)
+      ).toFixed(3),
     };
 
-    setSaving(true);
+    const updatedRecords = [...shippingRecords, newRecord];
+    setStorage('uspsOrders', updatedRecords);
+    setShippingRecords(updatedRecords);
     try {
-      await uspsApi.create(record);
-      showMsg("Movimiento guardado correctamente ✅");
-      setAmount("");
-      setDescription("");
-      setInvoiceRef("");
-      setMovDate(new Date().toISOString().split("T")[0]);
-      await loadRecords();
+      await syncToBackend();
     } catch (err) {
-      showMsg("Error al guardar en el servidor.", "error");
-      console.error(err);
-    } finally {
-      setSaving(false);
+      console.warn('Error sincronizando uspsOrders:', err);
     }
+
+    setMessage('¡Orden guardada con éxito!');
+    setInvoice('');
+    setBoxDimension('');
+    setWeight('');
+    setAddedFund('');
+    setCost('');
+    setArizonaExpenditure('');
+    setSelectedShippingDate('');
+    setShowDateModal(false);
+
+    // limpiar mensaje después de unos segundos
+    setTimeout(() => setMessage(''), 4000);
   };
 
-  // ── Eliminar ────────────────────────────────────────────────────
-  const handleDelete = async () => {
-    if (!delId) return;
-    try {
-      await uspsApi.remove(delId);
-      showMsg("Movimiento eliminado.");
-      setDelId(null);
-      await loadRecords();
-    } catch (err) {
-      showMsg("Error al eliminar.", "error");
-      console.error(err);
-    }
+  const handleDeleteClick = (recordId) => {
+    setRecordToDelete(recordId);
+    setShowDeleteConfirm(true);
   };
 
-  const balanceColor = balance >= 0 ? "text-green-600" : "text-red-600";
+  const confirmDeleteRecord = async () => {
+    const updated = shippingRecords.filter((r) => r.id !== recordToDelete);
+    setStorage('uspsOrders', updated);
+    setShippingRecords(updated);
+    try {
+      await syncToBackend();
+    } catch (err) {
+      console.warn('Error sincronizando uspsOrders después de eliminar:', err);
+    }
+    setMessage('Registro eliminado correctamente.');
+    setShowDeleteConfirm(false);
+    setRecordToDelete(null);
+    setTimeout(() => setMessage(''), 3000);
+  };
 
   return (
     <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-5xl mx-auto">
-      <h2 className="text-2xl font-bold text-gray-800 mb-2 text-center">
-        Balance USPS
-      </h2>
-      <p className="text-center text-gray-500 text-sm mb-6">
-        Control de fondos para envíos USPS — PO Box, etiquetado y gastos Arizona
-      </p>
+      <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">Órdenes para Envío USPS</h2>
+      {message && <p className="text-green-600 text-center mb-4">{message}</p>}
 
-      {/* Balance destacado */}
-      <div className="bg-gray-50 rounded-2xl p-6 mb-8 text-center border border-gray-200">
-        <p className="text-sm text-gray-500 font-medium mb-1">Balance actual</p>
-        <p className={`text-5xl font-bold ${balanceColor}`}>{fmt(balance)}</p>
-        <div className="flex justify-center gap-8 mt-4 text-sm">
-          <span className="text-green-600 font-semibold">
-            Fondos: {fmt(records.filter(r => r.type === "fondo").reduce((s, r) => s + Number(r.amount), 0))}
-          </span>
-          <span className="text-yellow-600 font-semibold">
-            PO Box: {fmt(records.filter(r => r.type === "pobox").reduce((s, r) => s + Number(r.amount), 0))}
-          </span>
-          <span className="text-orange-600 font-semibold">
-            Arizona: {fmt(records.filter(r => r.type === "arizona").reduce((s, r) => s + Number(r.amount), 0))}
-          </span>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+        <div>
+          <label className="block text-gray-700 text-sm font-semibold mb-2">Invoice</label>
+          <input
+            type="text"
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+            value={invoice}
+            onChange={(e) => setInvoice(e.target.value)}
+          />
+        </div>
+        <div>
+          <label className="block text-gray-700 text-sm font-semibold mb-2">Dimensión Caja</label>
+          <input
+            type="text"
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+            value={boxDimension}
+            onChange={(e) => setBoxDimension(e.target.value)}
+          />
+        </div>
+        <div>
+          <label className="block text-gray-700 text-sm font-semibold mb-2">Peso (Lbs)</label>
+          <input
+            type="number"
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+            value={weight}
+            onChange={(e) => setWeight(e.target.value)}
+          />
+        </div>
+        <div>
+          <label className="block text-gray-700 text-sm font-semibold mb-2">Added Fund</label>
+          <input
+            type="number"
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+            value={addedFund}
+            onChange={(e) => setAddedFund(e.target.value)}
+          />
+        </div>
+        <div>
+          <label className="block text-gray-700 text-sm font-semibold mb-2">Costo</label>
+          <input
+            type="number"
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+            value={cost}
+            onChange={(e) => setCost(e.target.value)}
+          />
+        </div>
+        <div>
+          <label className="block text-gray-700 text-sm font-semibold mb-2">Arizona Expenditure</label>
+          <input
+            type="number"
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+            value={arizonaExpenditure}
+            onChange={(e) => setArizonaExpenditure(e.target.value)}
+          />
         </div>
       </div>
 
-      {/* Mensaje */}
-      {message.text && (
-        <div className={`mb-4 px-4 py-2 rounded-lg text-sm font-medium ${
-          message.type === "error"
-            ? "bg-red-50 border border-red-200 text-red-700"
-            : "bg-green-50 border border-green-200 text-green-700"
-        }`}>
-          {message.text}
-        </div>
-      )}
+      <button
+        onClick={handleSaveOrder}
+        className="w-full mt-4 bg-black text-white py-3 rounded-xl hover:bg-gray-800 transition-all duration-300 text-lg font-semibold shadow-lg"
+      >
+        Guardar Orden
+      </button>
 
-      {/* Formulario — solo si tiene permisos */}
-      {editable ? (
-        <div className="bg-gray-50 rounded-xl p-6 mb-8 border border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-700 mb-4">Registrar movimiento</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-
-            {/* Tipo de movimiento */}
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">Tipo</label>
-              <div className="flex gap-2 flex-wrap">
-                {MOVEMENT_TYPES.map(m => (
-                  <button
-                    key={m.value}
-                    onClick={() => setMovType(m.value)}
-                    className={`px-3 py-2 rounded-lg text-sm font-semibold border-2 transition-all ${
-                      movType === m.value
-                        ? "border-black bg-black text-white"
-                        : "border-gray-300 bg-white text-gray-600 hover:border-gray-500"
-                    }`}
-                  >
-                    {m.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Monto */}
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">
-                Monto (USD)
-              </label>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="0.00"
-                value={amount}
-                onChange={e => setAmount(e.target.value)}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-black"
-              />
-            </div>
-
-            {/* Descripción */}
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">
-                Descripción {movType === "pobox" && <span className="text-yellow-600">(obligatoria para PO Box)</span>}
-              </label>
-              <input
-                type="text"
-                placeholder={
-                  movType === "fondo"   ? "Ej. Recarga de fondos semanal" :
-                  movType === "pobox"   ? "Ej. Invoice 7823U — PO Box California" :
-                  "Ej. Supplies Arizona warehouse"
-                }
-                value={description}
-                onChange={e => setDescription(e.target.value)}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-black"
-              />
-            </div>
-
-            {/* Invoice de referencia (solo PO Box) */}
-            {movType === "pobox" && (
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  Invoice FedEx de referencia
-                </label>
-                <input
-                  type="text"
-                  placeholder="Ej. 7823U"
-                  value={invoiceRef}
-                  onChange={e => setInvoiceRef(e.target.value)}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-black"
-                />
-              </div>
-            )}
-
-            {/* Fecha */}
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">Fecha</label>
-              <input
-                type="date"
-                value={movDate}
-                onChange={e => setMovDate(e.target.value)}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-black"
-              />
+      {/* Modal para seleccionar fecha de envío */}
+      {showDateModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-xl shadow-xl w-full max-w-md">
+            <h3 className="text-lg font-semibold mb-4 text-center">Seleccione la fecha de envío</h3>
+            <input
+              type="date"
+              value={selectedShippingDate}
+              onChange={(e) => setSelectedShippingDate(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg mb-4"
+            />
+            <div className="flex justify-end gap-4">
+              <button
+                onClick={() => {
+                  setShowDateModal(false);
+                  setSelectedShippingDate('');
+                }}
+                className="px-4 py-2 bg-gray-300 rounded-lg"
+              >
+                Cancelar
+              </button>
+              <button onClick={handleConfirmShippingDate} className="px-4 py-2 bg-blue-600 text-white rounded-lg">
+                Aceptar
+              </button>
             </div>
           </div>
-
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className={`w-full py-3 rounded-xl text-white font-semibold transition-colors ${
-              saving ? "bg-gray-400 cursor-not-allowed" : "bg-black hover:bg-gray-800"
-            }`}
-          >
-            {saving ? "Guardando…" : "Guardar movimiento"}
-          </button>
-        </div>
-      ) : (
-        <div className="mb-6 bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3 text-sm text-yellow-700 text-center">
-          Solo puedes ver los datos. Necesitas rol de <strong>editor</strong> o <strong>admin</strong> para agregar movimientos.
         </div>
       )}
 
-      {/* Historial */}
-      <h3 className="text-lg font-semibold text-gray-700 mb-3">
-        Historial de movimientos
-      </h3>
-      {loading ? (
-        <p className="text-center text-gray-400 py-8">Cargando…</p>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="min-w-full border border-gray-200 rounded-xl shadow-sm">
-            <thead className="bg-gray-100">
+      {/* Modal de confirmación para eliminar */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-xl shadow-xl w-full max-w-md">
+            <h3 className="text-lg font-semibold mb-4 text-center text-red-700">¿Seguro que deseas eliminar esta orden?</h3>
+            <div className="flex justify-end gap-4">
+              <button onClick={() => setShowDeleteConfirm(false)} className="px-4 py-2 bg-gray-300 rounded-lg">
+                No
+              </button>
+              <button onClick={confirmDeleteRecord} className="px-4 py-2 bg-red-600 text-white rounded-lg">
+                Sí, eliminar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="overflow-x-auto mt-6">
+        <table className="min-w-full bg-white border border-gray-200 rounded-lg shadow-sm">
+          <thead className="bg-gray-100">
+            <tr>
+              <th className="py-3 px-4">Invoice</th>
+              <th className="py-3 px-4">Dimensión Caja</th>
+              <th className="py-3 px-4">Peso</th>
+              <th className="py-3 px-4">Día Envío</th>
+              <th className="py-3 px-4">Hora Captura</th>
+              <th className="py-3 px-4">Added Fund</th>
+              <th className="py-3 px-4">Costo</th>
+              <th className="py-3 px-4">Arizona Exp.</th>
+              <th className="py-3 px-4">Balance</th>
+              <th className="py-3 px-4">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {shippingRecords.length > 0 ? (
+              shippingRecords.map((record) => (
+                <tr key={record.id} className="border-b hover:bg-gray-50">
+                  <td className="py-3 px-4">{record.invoice}</td>
+                  <td className="py-3 px-4">{record.boxDimension}</td>
+                  <td className="py-3 px-4">{record.weight ?? '—'}</td>
+                  <td className="py-3 px-4">{record.shippingDay}</td>
+                  <td className="py-3 px-4">{record.captureTime}</td>
+                  <td className="py-3 px-4">{record.addedFund}</td>
+                  <td className="py-3 px-4">{record.cost}</td>
+                  <td className="py-3 px-4">{record.arizonaExpenditure}</td>
+                  <td className="py-3 px-4 font-semibold">{record.balance}</td>
+                  <td className="py-3 px-4">
+                    <button
+                      onClick={() => handleDeleteClick(record.id)}
+                      className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 text-sm"
+                    >
+                      Eliminar
+                    </button>
+                  </td>
+                </tr>
+              ))
+            ) : (
               <tr>
-                <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600">Fecha</th>
-                <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600">Tipo</th>
-                <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600">Descripción</th>
-                <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600">Invoice Ref.</th>
-                <th className="py-3 px-4 text-right text-sm font-semibold text-gray-600">Monto</th>
-                <th className="py-3 px-4 text-right text-sm font-semibold text-gray-600">Balance</th>
-                {editable && <th className="py-3 px-4 text-center text-sm font-semibold text-gray-600">Acción</th>}
+                <td colSpan="10" className="py-4 text-center text-gray-500">No hay registros de envíos.</td>
               </tr>
-            </thead>
-            <tbody>
-              {(() => {
-                let running = 0;
-                return records.length > 0 ? records.map((r) => {
-                  const amt = Number(r.amount) || 0;
-                  if (r.type === "fondo")   running += amt;
-                  else                      running -= amt;
-                  const mt = MOVEMENT_TYPES.find(m => m.value === r.type);
-                  return (
-                    <tr key={r.id || r._id} className="border-t hover:bg-gray-50">
-                      <td className="py-3 px-4 text-sm text-gray-700">{r.date}</td>
-                      <td className="py-3 px-4">
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${mt?.color || "bg-gray-100 text-gray-600"}`}>
-                          {mt?.label || r.type}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-sm text-gray-700">{r.description || "—"}</td>
-                      <td className="py-3 px-4 text-sm text-gray-500">{r.invoiceRef || "—"}</td>
-                      <td className={`py-3 px-4 text-right font-semibold text-sm ${r.type === "fondo" ? "text-green-600" : "text-red-600"}`}>
-                        {r.type === "fondo" ? "+" : "−"}{fmt(amt)}
-                      </td>
-                      <td className={`py-3 px-4 text-right font-bold text-sm ${running >= 0 ? "text-green-700" : "text-red-700"}`}>
-                        {fmt(running)}
-                      </td>
-                      {editable && (
-                        <td className="py-3 px-4 text-center">
-                          <button
-                            onClick={() => setDelId(r.id || r._id)}
-                            className="text-red-500 hover:text-red-700 text-sm font-medium"
-                          >
-                            Eliminar
-                          </button>
-                        </td>
-                      )}
-                    </tr>
-                  );
-                }) : (
-                  <tr>
-                    <td colSpan={editable ? 7 : 6} className="py-8 text-center text-gray-400">
-                      No hay movimientos registrados.
-                    </td>
-                  </tr>
-                );
-              })()}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* Modal confirmar eliminar */}
-      {delId && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-sm text-center">
-            <p className="font-semibold text-gray-800 mb-4">¿Eliminar este movimiento?</p>
-            <p className="text-sm text-gray-500 mb-6">Esta acción no se puede deshacer.</p>
-            <div className="flex gap-3 justify-center">
-              <button onClick={() => setDelId(null)} className="px-5 py-2 rounded-xl border border-gray-300 text-gray-600 hover:bg-gray-50">Cancelar</button>
-              <button onClick={handleDelete}         className="px-5 py-2 rounded-xl bg-red-500 text-white hover:bg-red-600">Sí, eliminar</button>
-            </div>
-          </div>
-        </div>
-      )}
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 };
